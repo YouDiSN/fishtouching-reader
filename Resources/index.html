@@ -305,7 +305,7 @@ function currentProgress() {
   return {paragraph:group.start+Math.floor(fraction*(group.end-group.start+1)),fraction};
 }
 function flushProgress() { const p=currentProgress(); if(p)post('progress',p); }
-function prepareSecureLock() { const progress=currentProgress();clearTimeout(progressTimer);book=null;displayParagraphs=[];window.onscroll=null;state={type:'hidden'};app.innerHTML='';return progress; }
+function prepareSecureLock() { if(state.type==='normal'||(state.type==='book'&&state.tab==='normal'))return null;const progress=currentProgress();clearTimeout(progressTimer);book=null;displayParagraphs=[];window.onscroll=null;state={type:'hidden'};app.innerHTML='';return progress; }
 </script>
 </body>
 </html>

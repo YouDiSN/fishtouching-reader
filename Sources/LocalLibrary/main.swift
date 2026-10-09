@@ -214,7 +214,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         } catch { sendError(error.localizedDescription, context: currentTab == "secure" ? "library" : "normal") }
     }
 
-    private func showNormalLibrary() {
+    private func showNormalLibrary(completion: (() -> Void)? = nil) {
         currentTab = "normal"
         do {
             var pdfs = try pdfLibrary.listWithProgress().map { item -> [String: Any] in
@@ -232,9 +232,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
                              "pageFraction": progress?.fraction ?? 0,
                              "updatedAt": progress?.updatedAt.timeIntervalSince1970 ?? 0])
             }
-            send(["type": "normal", "pdfs": pdfs])
+            send(["type": "normal", "pdfs": pdfs], completion: completion)
         } catch {
-            sendError(error.localizedDescription, context: "normal")
+            send(["type": "error", "message": error.localizedDescription, "context": "normal"],
+                 completion: completion)
         }
     }
 
@@ -248,7 +249,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     }
 
     private func selectSecure() {
-        if currentTab == "normal" { currentBookID = secureResumeID }
+        currentBookID = nil
         currentTab = "secure"
         if vault.isUnlocked { sendLibrary() } else { showLocked() }
     }
@@ -480,10 +481,13 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     }
 
     @objc private func onLostFocus() {
-        guard window.isVisible, currentTab == "secure", vault.isUnlocked, !secureTransitioning else { return }
-        // The PDF panel can cover the web view; only its encrypted document needs the disguise.
-        if !pdfContainer.isHidden && !currentPDFIsSecure { return }
-        secureLock(showNormal: true, openCoverPDF: true)
+        guard window.isVisible, currentTab == "secure", !secureTransitioning else { return }
+        if !vault.isUnlocked {
+            currentBookID = nil
+            showNormalLibrary()
+            return
+        }
+        secureLock(showNormal: true, openCoverPDF: currentBookID != nil)
     }
 
     @objc private func onOtherAppActivated(_ note: Notification) {
@@ -505,8 +509,11 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
             currentPDFIsSecure = false
         }
         webView.isHidden = true
-        webView.evaluateJavaScript("prepareSecureLock()") { [weak self] value, _ in
+        var finished = false
+        let finish: (Any?) -> Void = { [weak self] value in
             guard let self else { return }
+            guard !finished else { return }
+            finished = true
             if let id = self.currentBookID,
                let position = value as? [String: Any],
                let paragraph = position["paragraph"] as? Int,
@@ -519,24 +526,30 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
             if showNormal {
                 if !openCoverPDF { self.currentBookID = nil }
                 self.currentTab = "normal"
-                self.showNormalLibrary()
+                self.webView.alphaValue = 0
                 self.webView.isHidden = false
-                if openCoverPDF, let firstPDF = try? self.pdfLibrary.list().first {
-                    self.openPDF(firstPDF.id, asCover: true)
+                self.showNormalLibrary {
+                    self.webView.alphaValue = 1
+                    if openCoverPDF, let firstPDF = try? self.pdfLibrary.list().first {
+                        self.openPDF(firstPDF.id, asCover: true)
+                    }
+                    self.secureTransitioning = false
                 }
-                self.secureTransitioning = false
             } else {
                 self.showLocked()
                 self.webView.isHidden = false
                 self.secureTransitioning = false
             }
         }
+        webView.evaluateJavaScript("prepareSecureLock()") { value, _ in finish(value) }
+        // WebKit may defer JavaScript while the app is inactive. Never leave the secure tab pending.
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(500)) { finish(nil) }
     }
 
     private func hideWindow() {
         guard window != nil, window.isVisible else { return }
         savePDFProgress()
-        if currentTab == "secure", vault.isUnlocked { secureLock(showNormal: true, openCoverPDF: true) }
+        onLostFocus()
         window.orderOut(nil)
     }
 

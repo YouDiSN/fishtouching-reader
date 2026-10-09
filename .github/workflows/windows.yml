@@ -55,12 +55,12 @@ jobs:
       - name: Create ZIP
         shell: pwsh
         run: |
-          Compress-Archive -Path 'windows/dist/FishTouching Reader-win32-x64/*' -DestinationPath 'FishTouching-Reader-Windows-x64-v1.0.0.zip' -CompressionLevel Optimal
-          Get-FileHash 'FishTouching-Reader-Windows-x64-v1.0.0.zip' -Algorithm SHA256 | Format-List
+          Compress-Archive -Path 'windows/dist/FishTouching Reader-win32-x64/*' -DestinationPath 'FishTouching-Reader-Windows-x64-v1.0.1.zip' -CompressionLevel Optimal
+          Get-FileHash 'FishTouching-Reader-Windows-x64-v1.0.1.zip' -Algorithm SHA256 | Format-List
       - uses: actions/upload-artifact@v4
         with:
-          name: FishTouching-Reader-Windows-x64-v1.0.0
-          path: FishTouching-Reader-Windows-x64-v1.0.0.zip
+          name: FishTouching-Reader-Windows-x64-v1.0.1
+          path: FishTouching-Reader-Windows-x64-v1.0.1.zip
           if-no-files-found: error
       - name: Attach Windows ZIP to Release
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag != '' }}
@@ -68,4 +68,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
-        run: gh release upload $env:RELEASE_TAG 'FishTouching-Reader-Windows-x64-v1.0.0.zip' --clobber
+        run: gh release upload $env:RELEASE_TAG 'FishTouching-Reader-Windows-x64-v1.0.1.zip' --clobber

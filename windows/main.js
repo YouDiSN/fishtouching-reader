@@ -73,7 +73,7 @@ async function loadReader(data) {
   send(data);
 }
 async function showNormal() { currentTab = 'normal'; currentId = null; window.setContentProtection(false); await loadReader(normalState()); }
-async function showSecure() { currentTab = 'secure'; window.setContentProtection(vault.unlocked); await loadReader(vault.unlocked ? secureState() : { type: 'locked' }); }
+async function showSecure() { currentTab = 'secure'; currentId = null; window.setContentProtection(vault.unlocked); await loadReader(vault.unlocked ? secureState() : { type: 'locked' }); }
 async function showText(entry, secure) {
   const data = secure ? vault.load(entry.id) : publicLibrary.load(entry);
   const parts = secure ? JSON.parse(data).paragraphs : paragraphs(data);
@@ -100,21 +100,29 @@ function updateProgress(id, position, fraction, secure = currentTab === 'secure'
   else if (!secure) publicLibrary.update(id, { progress: { ...value, updatedAt: Date.now() } });
 }
 async function coverSecure(openCover = true) {
-  if (switching || dialogOpen || currentTab !== 'secure' || !vault.unlocked) return;
+  if (switching || dialogOpen || currentTab !== 'secure') return;
   switching = true;
   try {
+    if (!vault.unlocked) {
+      currentId = null;
+      await showNormal();
+      return;
+    }
     const previous = currentId;
     if (pdf?.secure) {
       window.webContents.send('pdf-clear');
       pdf.data.fill(0); pdf = null;
     } else if (!pdf) {
-      const result = await window.webContents.executeJavaScript('prepareSecureLock()').catch(() => null);
+      const result = await Promise.race([
+        window.webContents.executeJavaScript('prepareSecureLock()').catch(() => null),
+        new Promise(resolve => setTimeout(() => resolve(null), 500))
+      ]);
       if (result) updateProgress(previous, result.paragraph, result.fraction, true);
     }
-    resumeId = previous;
+    if (previous) resumeId = previous;
     vault.lock(); currentTab = 'normal'; currentId = null;
     window.setContentProtection(false);
-    const cover = openCover ? publicLibrary.list().filter(e => e.kind === 'pdf').sort((a, b) => b.importedAt - a.importedAt)[0] : null;
+    const cover = openCover && previous ? publicLibrary.list().filter(e => e.kind === 'pdf').sort((a, b) => b.importedAt - a.importedAt)[0] : null;
     if (cover) await openPDF(cover, false, true);
     else await showNormal();
   } catch (e) { await showNormal(); error(e); }
@@ -281,10 +289,19 @@ async function runSmoke() {
   }
   smokeStage = 'unlock and resume'; traceSmoke(smokeStage); process.stdout.write(`${smokeStage}\n`);
   await showSecure();
+  await coverSecure(false);
+  const ordinary = await window.webContents.executeJavaScript("document.querySelector('h1')?.textContent");
+  if (currentTab !== 'normal' || ordinary !== '我的书库') throw new Error('Locked secure tab stayed visible after focus loss.');
+  await showSecure();
   vault.unlock('test4321');
   await openEntry(resumeId, true);
   const resumed = await window.webContents.executeJavaScript("document.getElementById('text')?.textContent.includes('橘猫')");
   if (!resumed) throw new Error('Secure reader did not resume.');
+  smokeStage = 'switch from secure library'; traceSmoke(smokeStage); process.stdout.write(`${smokeStage}\n`);
+  await showSecure();
+  await coverSecure();
+  const library = await window.webContents.executeJavaScript("document.querySelector('h1')?.textContent");
+  if (currentTab !== 'normal' || pdf || library !== '我的书库') throw new Error('Secure library did not switch to the ordinary library.');
   fs.writeFileSync(path.join(root, 'smoke-ok.txt'), 'read, cover PDF, lock, resume');
   process.stdout.write('Windows app smoke passed: read, cover PDF, lock, resume.\n');
   process.exit(0);
