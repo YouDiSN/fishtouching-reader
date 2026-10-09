@@ -24,7 +24,7 @@ jobs:
           cache-dependency-path: windows/package-lock.json
       - name: Install dependencies
         run: npm ci --prefix windows --no-audit --no-fund
-      - name: Test storage and importer
+      - name: Test storage
         run: npm test --prefix windows
       - name: Prepare UI assets
         run: npm run prepare:assets --prefix windows
