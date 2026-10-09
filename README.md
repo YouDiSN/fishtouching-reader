@@ -43,9 +43,15 @@ FishTouching Reader 是一款 macOS 和 Windows 本地阅读器：把工作文�
 
 **macOS：**从 [v0.3.2 Release](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v0.3.2) 下载压缩包，解压后将 `FishTouching Reader.app` 拖入“应用程序”文件夹。当前包是 **Apple Silicon** 架构，目标最低版本为 **macOS 13**；目前只在构建机的 macOS 26.6.2 验证过。构建所用 Homebrew `libsodium` 含有针对 macOS 26 构建的对象文件，旧系统兼容性尚未验证。
 
-macOS 包为临时签名，尚未经过 Apple 公证。首次出现 Gatekeeper 提示时，先尝试打开一次，再到“系统设置 → 隐私与安全性”点“仍要打开”，按提示确认；请先核对本仓库 Release 的 SHA-256。[Apple 官方说明](https://support.apple.com/en-us/102445) · [签名与公证进度](docs/macos-signing.md)
+macOS 包为临时签名，尚未经过 Apple 公证。**没有开发者证书也可以使用**，但下载后首次打开需要手动放行：
 
-**Windows：**从 [v0.4.0-beta.1 Release](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v0.4.0-beta.1) 下载 x64 便携 ZIP，完整解压后运行 `FishTouching Reader.exe`。当前 Windows 包未进行代码签名，SmartScreen 可能提示未知发布者；该版本已在 GitHub Windows runner 上通过阅读、失焦切到 PDF、锁定和恢复的自动测试，仍属于测试版。两个平台目前各有独立书库，不自动同步。详见 [Windows 说明](windows/README.md)。当前均无自动更新功能。
+1. 确认应用来自本仓库的 Release，并核对 Release 中的 SHA-256；双击应用尝试打开一次。
+2. 如果看到“Apple 无法验证”或“无法检查是否包含恶意软件”的提示，打开“系统设置 → 隐私与安全性”，向下找到该应用，点击“仍要打开”，按提示确认。这个按钮通常只在尝试打开后的约一小时内显示。
+3. macOS 会将该应用保存为例外，之后通常可以直接打开。此操作只放行该应用，不表示 Apple 已对它进行公证；无需关闭整个系统的安全检查。
+
+详见 [Apple 官方说明](https://support.apple.com/en-us/102445)及项目的[签名与公证进度](docs/macos-signing.md)。
+
+**Windows：**从 [v0.4.0-beta.2 Release](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v0.4.0-beta.2) 下载 x64 便携 ZIP，完整解压后运行 `FishTouching Reader.exe`。当前 Windows 包未进行代码签名，SmartScreen 可能提示未知发布者；该版本已在 GitHub Windows runner 上通过阅读、失焦切到 PDF、锁定和恢复的自动测试，仍属于测试版。两个平台目前各有独立书库，不自动同步。详见 [Windows 说明](windows/README.md)。当前均无自动更新功能。
 
 ## 构建
 
