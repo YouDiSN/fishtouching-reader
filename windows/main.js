@@ -287,7 +287,9 @@ function createWindow() {
 }
 async function runSmoke() {
   smokeStage = 'configure vault'; process.stdout.write(`${smokeStage}\n`);
-  const demo = path.resolve(__dirname, '../demo/fixtures');
+  const demo = process.env.FISHTOUCHING_SMOKE_FIXTURES
+    ? path.resolve(process.env.FISHTOUCHING_SMOKE_FIXTURES)
+    : path.resolve(__dirname, '../demo/fixtures');
   vault.configure('test4321');
   publicLibrary.add(path.join(demo, '工作汇报.pdf'));
   const body = fs.readFileSync(path.join(demo, '摸鱼.txt'));
