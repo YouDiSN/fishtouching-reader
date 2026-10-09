@@ -148,6 +148,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         case "read":
             guard let id = data["id"] as? String else { return }
             if currentTab == "secure" { showBook(id) } else { showNormalText(id) }
+        case "exportText":
+            if let id = data["id"] as? String { exportText(id) }
         case "removeBook":
             guard let id = data["id"] as? String else { return }
             removeBook(id, kind: data["kind"] as? String ?? "")
@@ -177,6 +179,65 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
                   "paragraphs": book.paragraphs, "paragraph": progress?.paragraph ?? 0,
                   "fraction": progress?.fraction ?? 0])
         } catch { sendError(error.localizedDescription, context: "library") }
+    }
+
+    private func exportText(_ id: String) {
+        guard currentTab == "secure", vault.isUnlocked, currentBookID == id else { return }
+        do {
+            guard let item = try vault.list().first(where: { $0.id == id && $0.kind == "text" }) else { return }
+            let title = (item.encodedTitle.removingPercentEncoding ?? item.encodedTitle)
+                .replacingOccurrences(of: "/", with: "-")
+                .replacingOccurrences(of: ":", with: "-")
+                .components(separatedBy: .newlines).joined(separator: " ")
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [.plainText]
+            panel.nameFieldStringValue = "\(title).txt"
+            panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+            panel.beginSheetModal(for: window) { [weak self] response in
+                guard let self, response == .OK, let url = panel.url,
+                      self.currentTab == "secure", self.vault.isUnlocked,
+                      self.currentBookID == id else { return }
+                do {
+                    let book = try self.vault.load(id)
+                    try book.paragraphs.joined(separator: "\n\n").write(to: url, atomically: true, encoding: .utf8)
+                } catch {
+                    self.sendError(error.localizedDescription, context: "book")
+                }
+            }
+        } catch { sendError(error.localizedDescription, context: "book") }
+    }
+
+    @objc private func archiveOtherSecureBooks() {
+        guard currentTab == "secure", vault.isUnlocked, let id = currentBookID else { return }
+        do {
+            let books = try vault.list()
+            guard let kept = books.first(where: { $0.id == id }) else { return }
+            let timestamp = DateFormatter()
+            timestamp.dateFormat = "yyyyMMdd-HHmmss"
+            let backups = vault.root.deletingLastPathComponent()
+                .appendingPathComponent("FishTouchingReaderBackups", isDirectory: true)
+            try FileManager.default.createDirectory(at: backups, withIntermediateDirectories: true,
+                                                    attributes: [.posixPermissions: 0o700])
+            let destination = backups.appendingPathComponent("secure-backup-\(timestamp.string(from: Date()))-\(UUID().uuidString.prefix(8))")
+            let title = kept.encodedTitle.removingPercentEncoding ?? kept.encodedTitle
+            let alert = NSAlert()
+            alert.messageText = "备份并整理加密书库？"
+            alert.informativeText = "保留《\(title)》，将其他 \(books.count - 1) 本从当前书库移除。所有书籍和进度会先加密备份，当前这本的应用内进度随后归零。"
+            alert.addButton(withTitle: "备份并整理")
+            alert.addButton(withTitle: "取消")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            let removed = try vault.archiveOtherBooks(keeping: id, at: destination, resetKeptProgress: true)
+            showBook(id)
+            let done = NSAlert()
+            done.messageText = "已备份，移除 \(removed) 本，当前进度归零"
+            done.informativeText = "备份位置：\(destination.path)"
+            done.runModal()
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "备份或整理失败"
+            alert.informativeText = error.localizedDescription
+            alert.runModal()
+        }
     }
 
     private func sendLibrary() {
@@ -802,6 +863,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         let settings = appMenu.addItem(withTitle: "设置…", action: #selector(menuSettings), keyEquivalent: ",")
         settings.target = self
         settings.keyEquivalentModifierMask = [.command]
+        let archive = appMenu.addItem(withTitle: "备份其他加密书籍…", action: #selector(archiveOtherSecureBooks), keyEquivalent: "")
+        archive.target = self
         appMenu.addItem(NSMenuItem.separator())
         appMenu.addItem(withTitle: "退出", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu

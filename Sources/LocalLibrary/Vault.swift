@@ -225,6 +225,44 @@ final class Vault {
         if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
         if FileManager.default.fileExists(atPath: progress.path) { try FileManager.default.removeItem(at: progress) }
     }
+    func archiveOtherBooks(keeping id: String, at destination: URL, resetKeptProgress: Bool = false) throws -> Int {
+        let entries = try catalog().entries
+        guard entries.contains(where: { $0.id == id }) else { throw VaultFailure.badData }
+        let others = entries.filter { $0.id != id }
+        guard !others.isEmpty || resetKeptProgress else { return 0 }
+        let fm = FileManager.default
+        guard !fm.fileExists(atPath: destination.path) else { throw VaultFailure.badData }
+        let stage = destination.deletingLastPathComponent()
+            .appendingPathComponent(".secure-backup-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: stage, withIntermediateDirectories: false,
+                               attributes: [.posixPermissions: 0o700])
+        defer { try? fm.removeItem(at: stage) }
+        let sources = [configURL, catalogURL, dataRoot]
+        for source in sources {
+            try fm.copyItem(at: source, to: stage.appendingPathComponent(source.lastPathComponent))
+        }
+        let files = (fm.enumerator(at: stage, includingPropertiesForKeys: [.isRegularFileKey])?.allObjects as? [URL] ?? [])
+            .filter { (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true }
+        guard !files.isEmpty else { throw VaultFailure.badData }
+        for copy in files {
+            let stagePath = stage.resolvingSymlinksInPath().path + "/"
+            let copyPath = copy.resolvingSymlinksInPath().path
+            guard copyPath.hasPrefix(stagePath) else { throw VaultFailure.badData }
+            let relative = String(copyPath.dropFirst(stagePath.count))
+            let source = root.appendingPathComponent(relative)
+            guard fm.fileExists(atPath: source.path),
+                  SHA256.hash(data: try Data(contentsOf: source)) == SHA256.hash(data: try Data(contentsOf: copy))
+            else { throw VaultFailure.badData }
+        }
+        try fm.moveItem(at: stage, to: destination)
+        for entry in others { try removeFromLibrary(entry.id) }
+        if resetKeptProgress {
+            let progress = try progressURL(id)
+            if fm.fileExists(atPath: progress.path) { try fm.removeItem(at: progress) }
+        }
+        guard try list().count == 1, try list().first?.id == id else { throw VaultFailure.badData }
+        return others.count
+    }
     func saveProgress(_ progress: ReadingProgress, for id: String) throws {
         guard let key else { throw VaultFailure.locked }
         try seal(encoder.encode(progress), with: key).write(to: progressURL(id), options: .atomic)

@@ -97,6 +97,22 @@ enum SelfTest {
         try shortPasswordVault.unlock(password: "5678")
         try check((try? shortPasswordVault.changePassword(old: "5678", new: "123")) == nil,
                   "password shorter than four rejected")
+        let archiveVault = Vault(root: root.appendingPathComponent("archive-live"))
+        try archiveVault.configure(password: "archive-pass")
+        let keptID = try archiveVault.saveText(title: "保留的书", paragraphs: ["保留正文"], sourceURL: "")
+        let archivedID = try archiveVault.saveText(title: "归档的书", paragraphs: ["归档正文"], sourceURL: "")
+        try archiveVault.saveProgress(ReadingProgress(paragraph: 0, fraction: 0.25, updatedAt: Date()), for: keptID)
+        try archiveVault.saveProgress(ReadingProgress(paragraph: 0, fraction: 0.5, updatedAt: Date()), for: archivedID)
+        let archivePath = root.appendingPathComponent("archive-copy")
+        try check(try archiveVault.archiveOtherBooks(keeping: keptID, at: archivePath, resetKeptProgress: true) == 1, "archive count")
+        try check(try archiveVault.list().map(\.id) == [keptID], "only current book remains")
+        try check(try archiveVault.loadProgress(keptID) == nil, "current progress reset")
+        let backupVault = Vault(root: archivePath)
+        try backupVault.unlock(password: "archive-pass")
+        try check(try backupVault.list().count == 2, "backup catalog complete")
+        try check(try backupVault.load(archivedID).paragraphs == ["归档正文"], "backup body complete")
+        try check(try backupVault.loadProgress(archivedID)?.fraction == 0.5, "backup progress complete")
+        try check(try backupVault.loadProgress(keptID)?.fraction == 0.25, "current progress backed up")
         print("Self-test passed: password, encryption, TXT/PDF, progress, removal")
     }
     private static func check(_ condition: @autoclosure () throws -> Bool, _ name: String) throws {

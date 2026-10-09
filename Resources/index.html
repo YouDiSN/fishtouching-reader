@@ -246,11 +246,12 @@ function renderBook() {
   chunk=Math.floor(savedIndex/chunkSize);
   app.innerHTML=`<div class="reader-head">${tabs(state.tab||'secure')}<button class="secondary" id="back">书库</button><div class="title">${h(title(state.encodedTitle))}</div>
       <div class="reader-controls"><button class="ghost" id="layout">${layoutMode==='clean'?'原始排版':'整理排版'}</button><button class="ghost" id="smaller">A−</button><button class="ghost" id="larger">A＋</button></div>
-      ${state.tab==='normal'?'':'<button id="lock">锁定</button>'}${settingsButton()}</div><div class="reader"><div class="muted" id="position"></div><div class="reader-text" id="text"></div>
+      ${state.tab==='normal'?'':'<button class="ghost" id="exportTxt">导出 TXT</button><button id="lock">锁定</button>'}${settingsButton()}</div><div class="reader"><div class="muted" id="position"></div><div class="reader-text" id="text"></div>
       <div class="reader-foot"><button class="secondary" id="prev">上一段</button><span class="muted" id="page"></span><button class="secondary" id="next">下一段</button></div></div>`;
   document.getElementById('back').onclick=()=>{flushProgress();post('library');};
   bindTabs();
   if(document.getElementById('lock')) document.getElementById('lock').onclick=()=>post('lock');
+  if(document.getElementById('exportTxt')) document.getElementById('exportTxt').onclick=()=>post('exportText',{id:state.id});
   document.getElementById('layout').onclick=()=>{
     const p=currentProgress(); layoutMode=layoutMode==='clean'?'raw':'clean';localStorage.setItem('layoutMode',layoutMode);
     book.paragraph=p?.paragraph||0; book.fraction=p?.fraction||0; renderBook();

@@ -186,6 +186,24 @@ async function handleAction(data) {
       case 'lock': if (currentTab === 'secure') { await coverSecure(); await showSecure(); } break;
       case 'library': if (currentTab === 'secure') { resumeId = null; currentId = null; send(secureState()); } else await showNormal(); break;
       case 'read': if (currentTab === 'secure' && vault.unlocked) await openEntry(data.id, true); else if (currentTab === 'normal') await openEntry(data.id, false); break;
+      case 'exportText': {
+        if (currentTab !== 'secure' || !vault.unlocked || currentId !== data.id) break;
+        const entry = vault.list().find(e => e.id === data.id && e.kind === 'text');
+        if (!entry) break;
+        const name = entry.title.replace(/[\\/:*?"<>|\r\n]/g, '-');
+        dialogOpen = true;
+        try {
+          const result = await dialog.showSaveDialog(window, { defaultPath: path.join(app.getPath('downloads'), `${name}.txt`), filters: [{ name: 'TXT', extensions: ['txt'] }] });
+          if (!result.canceled && result.filePath) {
+            const data = vault.load(entry.id);
+            try {
+              const book = JSON.parse(data.toString('utf8'));
+              fs.writeFileSync(result.filePath, book.paragraphs.join('\n\n'), { encoding: 'utf8', mode: 0o600 });
+            } finally { data.fill(0); }
+          }
+        } finally { dialogOpen = false; }
+        break;
+      }
       case 'openPDF': if (currentTab === 'normal') await openEntry(data.id, false); break;
       case 'importLocal': case 'importPDF': await importLocal(); break;
       case 'removeBook': {
