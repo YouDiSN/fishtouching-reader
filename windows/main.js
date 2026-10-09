@@ -15,15 +15,13 @@ process.on('uncaughtException', error => { traceSmoke(`uncaught: ${error.stack |
 process.on('unhandledRejection', error => { traceSmoke(`rejection: ${error?.stack || error}`); process.exit(1); });
 const { Vault, writeAtomic } = require('./vault');
 const { PublicLibrary, paragraphs } = require('./library');
-const importer = require('./importer');
 
 const DEFAULT_NAME = 'FishTouching Reader';
 const ICONS = new Set(['fish', 'book', 'night', 'leaf', 'coffee', 'star', 'pencil', 'music', 'sunrise', 'cloud']);
 const assets = path.join(__dirname, 'assets');
 let root, vault, publicLibrary, preferences, window, settingsWindow, tray;
-let currentTab = 'normal', currentId = null, resumeId = null, pdf = null, pending = null;
-let busy = false, switching = false, dialogOpen = false, quitting = false;
-let batchGeneration = 0;
+let currentTab = 'normal', currentId = null, resumeId = null, pdf = null;
+let switching = false, dialogOpen = false, quitting = false;
 const smokeMode = Boolean(process.env.FISHTOUCHING_SMOKE_ROOT) || process.argv.includes('--smoke');
 let smokeStage = 'waiting for Electron';
 if (smokeMode) {
@@ -65,7 +63,7 @@ function secureState() {
     host: e.sourceURL ? new URL(e.sourceURL).hostname : (e.kind === 'pdf' ? 'PDF' : '本地文件'),
     count: e.count, wordCount: e.wordCount, kind: e.kind, pageCount: e.pageCount,
     paragraph: e.progress?.position || 0, fraction: e.progress?.fraction || 0,
-    updatedAt: (e.progress?.updatedAt || 0) / 1000 })), batchRunning: busy };
+    updatedAt: (e.progress?.updatedAt || 0) / 1000 })) };
 }
 async function loadReader(data) {
   if (!window.webContents.getURL().endsWith('/index.html')) {
@@ -114,7 +112,7 @@ async function coverSecure(openCover = true) {
       if (result) updateProgress(previous, result.paragraph, result.fraction, true);
     }
     resumeId = previous;
-    vault.lock(); pending = null; currentTab = 'normal'; currentId = null;
+    vault.lock(); currentTab = 'normal'; currentId = null;
     window.setContentProtection(false);
     const cover = openCover ? publicLibrary.list().filter(e => e.kind === 'pdf').sort((a, b) => b.importedAt - a.importedAt)[0] : null;
     if (cover) await openPDF(cover, false, true);
@@ -159,38 +157,6 @@ async function chooseIcon() {
     if (!settingsWindow) window.webContents.executeJavaScript("selectSetupIcon('custom')").catch(() => {});
   } finally { dialogOpen = false; }
 }
-async function importURL(value, index = false) {
-  if (busy || !vault.unlocked) return;
-  const generation = ++batchGeneration;
-  busy = true;
-  try {
-    if (!index) {
-      send({ type: 'busy', message: '正在下载和提取正文…' });
-      const response = await importer.fetchHTML(value);
-      pending = importer.extract(response.html, response.url);
-      if (currentTab !== 'secure' || !vault.unlocked) return;
-      send({ type: 'preview', encodedTitle: pending.encodedTitle, originalTitle: pending.originalTitle,
-        count: pending.paragraphs.length, sample: pending.paragraphs.slice(0, 8).join('\n') });
-    } else {
-      send({ type: 'batch', message: '正在读取目录…' });
-      const response = await importer.fetchHTML(value);
-      const links = importer.indexLinks(response.html, response.url);
-      let added = 0, failed = 0, skipped = 0;
-      const existing = new Set(vault.list().map(e => e.sourceURL));
-      for (let i = 0; i < links.length; i++) {
-        if (generation !== batchGeneration || currentTab !== 'secure' || !vault.unlocked) return;
-        if (existing.has(links[i])) { skipped++; continue; }
-        send({ type: 'batch', message: `逐篇导入中：${i + 1}/${links.length}，已保存 ${added} 本，失败 ${failed} 本。` });
-        try { const page = await importer.fetchHTML(links[i]); const book = importer.extract(page.html, page.url);
-          vault.add({ title: book.originalTitle, sourceURL: book.sourceURL, kind: 'text',
-            data: Buffer.from(JSON.stringify(book)), paragraphs: book.paragraphs }); added++; }
-        catch { failed++; }
-      }
-      send({ ...secureState(), batchStatus: `目录导入完成：新增 ${added} 本，跳过已有 ${skipped} 本，失败 ${failed} 本。` });
-    }
-  } catch (e) { error(e); }
-  finally { busy = false; }
-}
 async function handleAction(data) {
   const action = data?.action;
   try {
@@ -220,11 +186,6 @@ async function handleAction(data) {
         break;
       }
       case 'progress': if (!pdf) updateProgress(currentId, data.paragraph, data.fraction); break;
-      case 'import': await importURL(data.url); break;
-      case 'importIndex': await importURL(data.url, true); break;
-      case 'saveImport': if (pending && vault.unlocked) { vault.add({ title: pending.originalTitle, sourceURL: pending.sourceURL,
-        kind: 'text', data: Buffer.from(JSON.stringify(pending)), paragraphs: pending.paragraphs }); pending = null; send(secureState()); } break;
-      case 'cancelImport': pending = null; send(secureState()); break;
       case 'selectIcon': if (ICONS.has(data.id)) { preferences.iconID = data.id; savePreferences(); applyAppearance();
         window.webContents.executeJavaScript(`selectSetupIcon(${JSON.stringify(data.id)})`).catch(() => {}); } break;
       case 'chooseIcon': await chooseIcon(); break;

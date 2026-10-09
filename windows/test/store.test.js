@@ -6,7 +6,6 @@ const os = require('node:os');
 const path = require('node:path');
 const { Vault } = require('../vault');
 const { PublicLibrary, paragraphs } = require('../library');
-const { extract, indexLinks } = require('../importer');
 
 function temporary(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fishtouching-test-'));
@@ -46,12 +45,4 @@ test('removing an imported public copy keeps the original file', t => {
   library.remove(entry.id);
   assert.equal(library.list().length, 0);
   assert.equal(fs.readFileSync(source, 'utf8'), '第一段\n第二段');
-});
-test('article and directory extraction use fictional HTML', () => {
-  const article = '<article><h1>窗边的橘猫</h1><p>第一段<br>第二行</p><p>第二段</p></article>';
-  const book = extract(article, 'https://example.com/2026/10/09/story/');
-  assert.equal(book.originalTitle, '窗边的橘猫');
-  assert.deepEqual(book.paragraphs, ['第一段', '第二行', '第二段']);
-  const index = '<div class="entry-content"><a href="/2026/10/09/story/">一</a><a href="https://other.example/a">外站</a></div>';
-  assert.deepEqual(indexLinks(index, 'https://example.com/catalog/'), ['https://example.com/2026/10/09/story/']);
 });

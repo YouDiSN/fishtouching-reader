@@ -20,10 +20,11 @@ cp Resources/index.html "$app_dir/Contents/Resources/index.html"
 cp Resources/settings.html "$app_dir/Contents/Resources/settings.html"
 cp scripts/rename-helper.sh "$app_dir/Contents/Resources/rename-helper.sh"
 licenses_dir="$app_dir/Contents/Resources/Licenses"
+rm -rf "$licenses_dir"
 mkdir -p "$licenses_dir"
 cp LICENSE "$licenses_dir/FishTouching-Reader-LICENSE"
 cp THIRD_PARTY_NOTICES.md "$licenses_dir/THIRD_PARTY_NOTICES.md"
-cp -f licenses/SwiftSoup-LICENSE licenses/libsodium-LICENSE "$licenses_dir/"
+cp -f licenses/libsodium-LICENSE "$licenses_dir/"
 icons_dir="$app_dir/Contents/Resources/Icons"
 mkdir -p "$icons_dir"
 swift scripts/make-icon.swift "$icons_dir/book.png"
@@ -52,8 +53,8 @@ cat > "$app_dir/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIconFile</key><string>AppIcon.icns</string>
   <key>CFBundleIconName</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.3.2</string>
-  <key>CFBundleVersion</key><string>12</string>
+  <key>CFBundleShortVersionString</key><string>0.3.3</string>
+  <key>CFBundleVersion</key><string>13</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>

@@ -34,15 +34,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     private var currentPDFIsSecure = false
     private var pdfScrollView: NSScrollView?
     private var pdfProgressWorkItem: DispatchWorkItem?
-    private var pendingImport: ImportedBook?
     private var currentBookID: String?
     private var secureResumeID: String?
     private var currentTab = "normal"
     private var secureTransitioning = false
-    private var batchGeneration = UUID()
-    private var batchRunning = false
-    private var batchStatus: String?
-    private var batchFailures: [String] = []
     private var hotKeyRef: EventHotKeyRef?
     private var hotKeyHandler: EventHandlerRef?
     private var hotKeyRegistrationStatus: OSStatus = -1
@@ -146,13 +141,6 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         case "importPDF": importLocal()
         case "openPDF":
             if let id = data["id"] as? String { openPDF(id) }
-        case "import": startImport(data["url"] as? String ?? "")
-        case "importIndex": startIndexImport(data["url"] as? String ?? "")
-        case "saveImport":
-            guard currentTab == "secure", vault.isUnlocked, let imported = pendingImport else { return }
-            do { _ = try vault.save(imported); pendingImport = nil; sendLibrary() }
-            catch { sendError(error.localizedDescription, context: "preview") }
-        case "cancelImport": pendingImport = nil; sendLibrary()
         case "library":
             currentBookID = nil
             if currentTab == "secure" { secureResumeID = nil; sendLibrary() }
@@ -176,32 +164,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         }
     }
 
-    private func startImport(_ input: String) {
-        guard currentTab == "secure", vault.isUnlocked else { showLocked(); return }
-        guard !batchRunning else { return }
-        let url: URL
-        do { url = try WordPressImporter.validatedURL(input) }
-        catch { sendError(error.localizedDescription, context: "library"); return }
-        send(["type": "busy", "message": "正在下载和提取正文…"])
-        WordPressImporter.fetch(url) { [weak self] result in
-            guard let self else { return }
-            DispatchQueue.main.async {
-                guard self.currentTab == "secure", self.vault.isUnlocked else { return }
-                switch result {
-                case .success(let imported):
-                    self.pendingImport = imported
-                    self.send(["type": "preview", "encodedTitle": imported.encodedTitle,
-                               "originalTitle": imported.originalTitle,
-                               "count": imported.paragraphs.count,
-                               "sample": imported.paragraphs.prefix(8).joined(separator: "\n")])
-                case .failure(let error): self.sendError(error.localizedDescription, context: "library")
-                }
-            }
-        }
-    }
-
     private func showBook(_ id: String) {
-        cancelBatch()
         do {
             if try vault.list().contains(where: { $0.id == id && $0.kind == "pdf" }) {
                 openSecurePDF(id); return
@@ -229,9 +192,6 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
                  "updatedAt": item.kind == "pdf" ? (pdfProgress?.updatedAt?.timeIntervalSince1970 ?? 0) : (item.progress?.updatedAt.timeIntervalSince1970 ?? 0)]
             }
             send(["type": "library", "books": books,
-                  "batchStatus": batchStatus ?? "",
-                  "batchRunning": batchRunning,
-                  "batchFailures": batchFailures,
                   "hotKeyAvailable": hotKeyRegistrationStatus == noErr])
         } catch { sendError(error.localizedDescription, context: "library") }
     }
@@ -239,7 +199,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     private func removeBook(_ id: String, kind: String) {
         do {
             if currentTab == "secure" {
-                guard vault.isUnlocked, !batchRunning else { return }
+                guard vault.isUnlocked else { return }
                 try vault.removeFromLibrary(id)
                 if secureResumeID == id { secureResumeID = nil }
                 if currentBookID == id { currentBookID = nil }
@@ -534,7 +494,6 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
 
     private func secureLock(showNormal: Bool = false, openCoverPDF: Bool = false) {
         guard currentTab == "secure", vault.isUnlocked, !secureTransitioning else { return }
-        cancelBatch()
         secureTransitioning = true
         secureResumeID = currentBookID
         if currentPDFIsSecure {
@@ -557,7 +516,6 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
                                                                updatedAt: Date()), for: id)
             }
             self.vault.lock()
-            self.pendingImport = nil
             if showNormal {
                 if !openCoverPDF { self.currentBookID = nil }
                 self.currentTab = "normal"
@@ -571,73 +529,6 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
                 self.showLocked()
                 self.webView.isHidden = false
                 self.secureTransitioning = false
-            }
-        }
-    }
-
-    private func cancelBatch() {
-        batchGeneration = UUID()
-        batchRunning = false
-        batchStatus = nil
-        batchFailures = []
-    }
-
-    private func startIndexImport(_ input: String) {
-        guard currentTab == "secure", vault.isUnlocked, !batchRunning else { return }
-        let url: URL
-        do { url = try WordPressImporter.validatedURL(input) }
-        catch { sendError(error.localizedDescription, context: "library"); return }
-        batchRunning = true
-        batchFailures = []
-        let generation = UUID()
-        batchGeneration = generation
-        batchStatus = "正在读取目录…"
-        send(["type": "batch", "message": batchStatus!])
-        WordPressImporter.fetchIndex(url) { [weak self] result in
-            DispatchQueue.main.async {
-                guard let self, self.batchGeneration == generation,
-                      self.currentTab == "secure", self.vault.isUnlocked else { return }
-                do {
-                    let links = try result.get()
-                    let existing = Set(try self.vault.list().map(\.sourceURL))
-                    let remaining = links.filter { !existing.contains($0.absoluteString) }
-                    self.importNext(remaining, at: 0, generation: generation,
-                                    skipped: links.count - remaining.count, imported: 0, failed: 0)
-                } catch {
-                    self.batchRunning = false
-                    self.batchStatus = nil
-                    self.sendLibrary()
-                    self.sendError(error.localizedDescription, context: "library")
-                }
-            }
-        }
-    }
-
-    private func importNext(_ urls: [URL], at index: Int, generation: UUID,
-                            skipped: Int, imported: Int, failed: Int) {
-        guard batchGeneration == generation, currentTab == "secure", vault.isUnlocked else { return }
-        guard index < urls.count else {
-            batchRunning = false
-            batchStatus = "目录导入完成：新增 \(imported) 本，跳过已有 \(skipped) 本，失败 \(failed) 本。"
-            sendLibrary()
-            return
-        }
-        batchStatus = "逐篇导入中：\(index + 1)/\(urls.count)，已保存 \(imported) 本，失败 \(failed) 本。"
-        send(["type": "batch", "message": batchStatus!])
-        WordPressImporter.fetch(urls[index]) { [weak self] result in
-            DispatchQueue.main.async {
-                guard let self, self.batchGeneration == generation,
-                      self.currentTab == "secure", self.vault.isUnlocked else { return }
-                var newImported = imported
-                var newFailed = failed
-                do { _ = try self.vault.save(result.get()); newImported += 1 }
-                catch {
-                    newFailed += 1
-                    self.batchFailures.append(urls[index].absoluteString)
-                    NSLog("LocalLibrary index import failed: %@ (%@)", urls[index].absoluteString, error.localizedDescription)
-                }
-                self.importNext(urls, at: index + 1, generation: generation,
-                                skipped: skipped, imported: newImported, failed: newFailed)
             }
         }
     }
@@ -946,13 +837,13 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     }
 }
 
-if CommandLine.arguments.contains("--self-test") || CommandLine.arguments.contains("--verify-live") || CommandLine.arguments.contains("--probe-keychain") || CommandLine.arguments.contains("--verify-migration") {
+if CommandLine.arguments.contains("--self-test") || CommandLine.arguments.contains("--probe-keychain") || CommandLine.arguments.contains("--verify-migration") {
     do {
         if CommandLine.arguments.contains("--probe-keychain") { try SelfTest.probeKeychain() }
         else if let index = CommandLine.arguments.firstIndex(of: "--verify-migration"), CommandLine.arguments.indices.contains(index + 1) {
             try SelfTest.verifyMigration(source: URL(fileURLWithPath: CommandLine.arguments[index + 1]))
         }
-        else { try SelfTest.run(live: CommandLine.arguments.contains("--verify-live")) }
+        else { try SelfTest.run() }
         exit(0)
     } catch {
         fputs("Verification failed: \(error)\n", stderr)

@@ -35,7 +35,6 @@ FishTouching Reader 是一款 macOS 和 Windows 本地阅读器：把工作文�
 ## 其他功能
 
 - 支持导入本地 TXT、PDF；加密书库中的内容会加密保存。「我的书库」的普通文件不加密。
-- 加密书库支持从网址导入，提供单篇预览和目录批量导入。WordPress、Cool18 的已知结构有适配，其他文章页尝试常见正文选择器。分页、动态渲染和特殊模板可能需要额外适配，导入前请在预览中确认正文完整。
 - 两个书库都有最近阅读、阅读进度、搜索和按字数排序。列表悬停后可移除书籍；应用会删除自己管理的副本、目录记录与进度，**不会删除最初导入的原始文件**。
 - macOS 用 `Control + Option + H` 显示或隐藏窗口、`Command + ,` 打开设置；Windows 用 `Ctrl + Alt + H` 和 `Ctrl + ,`。菜单栏或系统托盘也提供入口。
 
@@ -55,7 +54,7 @@ macOS 包为临时签名，尚未经过 Apple 公证。**没有开发者证书�
 
 ## 构建
 
-以下是 macOS 构建步骤，需要 Swift 5.9+、SwiftSoup 包依赖，以及通过 Homebrew 安装的 `libsodium`（构建脚本使用 `/opt/homebrew/lib/libsodium.a`）。Windows 构建步骤见 [Windows 说明](windows/README.md)。
+以下是 macOS 构建步骤，需要 Swift 5.9+，以及通过 Homebrew 安装的 `libsodium`（构建脚本使用 `/opt/homebrew/lib/libsodium.a`）。Windows 构建步骤见 [Windows 说明](windows/README.md)。
 
 ```sh
 brew install libsodium
@@ -85,7 +84,6 @@ Windows 书库位于 `%APPDATA%\FishTouching Reader\`，加密书库使用 scryp
 
 ```sh
 .build/release/LocalLibrary --self-test
-.build/release/LocalLibrary --verify-live
 .build/release/LocalLibrary --verify-migration "/path/to/old/LocalLibrary-backup"
 ```
 
@@ -93,4 +91,4 @@ Windows 书库位于 `%APPDATA%\FishTouching Reader\`，加密书库使用 scryp
 
 ## 开源协议
 
-本项目采用 [MIT License](LICENSE)，版权归 `YouDiSN`。你可以修改、分发并用于开源或闭源项目；分发本软件或其重要部分时，须保留原版权和许可声明。SwiftSoup 和 libsodium 各自的许可及版权见 [第三方声明](THIRD_PARTY_NOTICES.md)。下载包内也附有完整声明。
+本项目采用 [MIT License](LICENSE)，版权归 `YouDiSN`。你可以修改、分发并用于开源或闭源项目；分发本软件或其重要部分时，须保留原版权和许可声明。libsodium 的许可及版权见 [第三方声明](THIRD_PARTY_NOTICES.md)。下载包内也附有完整声明。

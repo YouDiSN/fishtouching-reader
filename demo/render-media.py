@@ -47,7 +47,6 @@ def capture(name: str, html: str, temporary: Path):
 
 def application_frame(view: str, label: str, payload: dict) -> str:
     source = (ROOT / "Resources" / "index.html").read_text(encoding="utf-8")
-    source = re.sub(r"let indexURL = '[^']*';", "let indexURL = '';", source)
     style = """
     body { background: #0a1110; }
     .demo-window { width: 1024px; height: 768px; overflow: hidden; background: #101716; }

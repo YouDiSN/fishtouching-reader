@@ -23,23 +23,20 @@ enum SelfTest {
         try check(!files.contains(where: { $0.lastPathComponent == "vault.key" || $0.pathExtension == "book" }), "legacy files removed")
         print("Migration verified: \(expectedBooks) books, \(expectedProgress) progress records")
     }
-    static func run(live: Bool) throws {
-        let html = "<html><h1 class='wp-block-post-title'>测试文章</h1><div class='entry-content wp-block-post-content'><p class='wp-block-paragraph'>正文第一行。<br>正文第二行。</p><p class='wp-block-paragraph'>下一段。</p></div></html>"
-        let source = URL(string: "https://example.wordpress.com/2024/01/01/test/")!
-        let imported = try WordPressImporter.extract(html: html, sourceURL: source)
-        try check(imported.paragraphs.count == 3, "extraction")
+    static func run() throws {
+        let paragraphs = ["正文第一行。", "正文第二行。", "下一段。"]
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let vault = Vault(root: root)
         try vault.configure(password: "test-pass-123")
-        let id = try vault.save(imported)
+        let id = try vault.saveText(title: "测试文章", paragraphs: paragraphs, sourceURL: "")
         try check(UUID(uuidString: id) != nil, "UUID filename")
         try vault.saveProgress(ReadingProgress(paragraph: 1, fraction: 0.5, updatedAt: Date()), for: id)
         vault.lock()
         try check((try? vault.load(id)) == nil, "locked book")
         try check((try? vault.unlock(password: "wrong")) == nil, "wrong password rejected")
         try vault.unlock(password: "test-pass-123")
-        try check(try vault.load(id).paragraphs == imported.paragraphs, "book round trip")
+        try check(try vault.load(id).paragraphs == paragraphs, "book round trip")
         try check(try vault.loadProgress(id)?.paragraph == 1, "progress round trip")
         try check(try vault.list().first?.encodedTitle == "测试文章", "encrypted catalog title")
         try vault.changePassword(old: "test-pass-123", new: "new-pass-123")
@@ -100,30 +97,10 @@ enum SelfTest {
         try shortPasswordVault.unlock(password: "5678")
         try check((try? shortPasswordVault.changePassword(old: "5678", new: "123")) == nil,
                   "password shorter than four rejected")
-        print("Self-test passed: extraction, password, encryption, TXT/PDF, progress, removal")
-        if live { try runLive() }
+        print("Self-test passed: password, encryption, TXT/PDF, progress, removal")
     }
     private static func check(_ condition: @autoclosure () throws -> Bool, _ name: String) throws {
         if try !condition() { throw NSError(domain: "SelfTest", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed: \(name)"]) }
-    }
-    private static func runLive() throws {
-        let url = URL(string: "https://example.invalid/removed")!
-        let semaphore = DispatchSemaphore(value: 0)
-        var result: Result<ImportedBook, Error>?
-        WordPressImporter.fetch(url) { result = $0; semaphore.signal() }
-        guard semaphore.wait(timeout: .now() + 45) == .success, let book = try result?.get() else { throw ImportFailure.badResponse }
-        try check(book.paragraphs.count > 8_000, "live import")
-        print("Live import passed: \(book.paragraphs.count) paragraphs")
-        let coolURL = URL(string: "https://example.invalid/removed")!
-        var coolHTML: Result<String, Error>?
-        let second = DispatchSemaphore(value: 0)
-        WordPressImporter.fetchHTML(coolURL) { coolHTML = $0; second.signal() }
-        guard second.wait(timeout: .now() + 45) == .success, let html = try coolHTML?.get() else { throw ImportFailure.badResponse }
-        let links = try WordPressImporter.indexLinks(html: html, sourceURL: coolURL)
-        try check(links.count >= 20, "Cool18 index links")
-        let excerpt = try WordPressImporter.extract(html: html, sourceURL: coolURL)
-        try check(excerpt.paragraphs.count > 20, "Cool18 PRE extraction")
-        print("Cool18 verified: \(links.count) links, \(excerpt.paragraphs.count) paragraphs")
     }
     static func probeKeychain() throws {
         let service = "local.library.reader.probe.\(UUID().uuidString)"

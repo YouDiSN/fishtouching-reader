@@ -185,15 +185,12 @@ final class Vault {
         try writeCatalog(entries)
         return id
     }
-    func save(_ imported: ImportedBook) throws -> String {
-        let book = StoredBook(sourceURL: imported.sourceURL, encodedTitle: imported.encodedTitle,
-                              originalTitle: imported.originalTitle, paragraphs: imported.paragraphs, importedAt: Date())
+    func saveText(title: String, paragraphs: [String], sourceURL: String) throws -> String {
+        let book = StoredBook(sourceURL: sourceURL, encodedTitle: title,
+                              originalTitle: title, paragraphs: paragraphs, importedAt: Date())
         return try insert(data: encoder.encode(book), title: book.originalTitle, sourceURL: book.sourceURL,
                           kind: "text", importedAt: book.importedAt, paragraphCount: book.paragraphs.count,
                           wordCount: countWords(book.paragraphs), pageCount: 0)
-    }
-    func saveText(title: String, paragraphs: [String], sourceURL: String) throws -> String {
-        try save(ImportedBook(sourceURL: sourceURL, encodedTitle: title, originalTitle: title, paragraphs: paragraphs))
     }
     func savePDF(data: Data, title: String, pageCount: Int) throws -> String {
         try insert(data: data, title: title, sourceURL: "", kind: "pdf", importedAt: Date(),

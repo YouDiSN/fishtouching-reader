@@ -5,9 +5,7 @@ let package = Package(
     name: "LocalLibrary",
     platforms: [.macOS(.v13)],
     products: [.executable(name: "LocalLibrary", targets: ["LocalLibrary"])],
-    dependencies: [
-        .package(url: "https://github.com/scinfu/SwiftSoup.git", exact: "2.9.6")
-    ],
-    targets: [.executableTarget(name: "LocalLibrary", dependencies: ["SwiftSoup"],
+    dependencies: [],
+    targets: [.executableTarget(name: "LocalLibrary", dependencies: [],
                                 linkerSettings: [.unsafeFlags(["/opt/homebrew/lib/libsodium.a"])])]
 )
