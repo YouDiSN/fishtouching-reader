@@ -3,6 +3,7 @@
 - 这是 YouDiSN 的个人 macOS 项目，不属于公司项目。提交和发布只使用个人 GitHub 仓库，不加入公司组织、账号、依赖或配置。
 - 项目采用 MIT License，版权声明为 `Copyright (c) 2026 YouDiSN`。源码和下载包均须保留项目 LICENSE、第三方许可文件及声明；不要把 SwiftSoup 或 libsodium 的版权归到本项目名下。
 - 源码在 `Sources/LocalLibrary/`，界面在 `Resources/`，构建脚本在 `scripts/`。目标最低系统版本为 macOS 13；当前构建依赖 Homebrew 的 arm64 `libsodium` 静态库。该依赖目前包含针对 macOS 26 构建的对象文件，旧系统兼容性需要实机验证。
+- Windows 版位于 `windows/`，复用由 `windows/scripts/prepare-assets.js` 转换的阅读界面。其书库格式和路径与 macOS 版分开；不要声称两个平台自动同步或直接兼容。`npm test --prefix windows` 验证数据层；Windows Actions 还需通过 Electron smoke 和打包后才能发布 ZIP。
 - 默认应用名称是「FishTouching Reader」，默认图标是 `fish`。用户可在应用内修改名称和图标；本机已改名的 `.app` 目录不代表发行包的默认名称。
 - 书库数据位于 `~/Library/Application Support/LocalLibrary/`。不要将该目录、个人阅读清单、源书籍、密码、密钥、备份、日志或用户自定义图标加入 Git、测试样本或发行包。
 - README 截图、GIF 和测试演示只使用 `demo/fixtures/` 中虚构素材；`demo/render-media.py` 不得读取真实书库。生成媒体后人工检查画面再公开。

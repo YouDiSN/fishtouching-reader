@@ -13,6 +13,12 @@ let root, vault, publicLibrary, preferences, window, settingsWindow, tray;
 let currentTab = 'normal', currentId = null, resumeId = null, pdf = null, pending = null;
 let busy = false, switching = false, dialogOpen = false, quitting = false;
 let batchGeneration = 0;
+const smokeMode = process.argv.includes('--smoke');
+let smokeStage = 'waiting for Electron';
+if (smokeMode) {
+  app.commandLine.appendSwitch('disable-gpu');
+  setTimeout(() => { process.stderr.write(`Smoke timed out: ${smokeStage}\n`); process.exit(1); }, 60000).unref();
+}
 
 function preferencePath() { return path.join(root, 'preferences.json'); }
 function savePreferences() { writeAtomic(preferencePath(), JSON.stringify(preferences)); }
@@ -280,14 +286,17 @@ function createWindow() {
   return loaded;
 }
 async function runSmoke() {
+  smokeStage = 'configure vault'; process.stdout.write(`${smokeStage}\n`);
   const demo = path.resolve(__dirname, '../demo/fixtures');
   vault.configure('test4321');
   publicLibrary.add(path.join(demo, '工作汇报.pdf'));
   const body = fs.readFileSync(path.join(demo, '摸鱼.txt'));
   const entry = vault.add({ title: '窗边的橘猫', kind: 'text', data: Buffer.from(JSON.stringify({ paragraphs: paragraphs(body) })), paragraphs: paragraphs(body) });
+  smokeStage = 'render secure TXT'; process.stdout.write(`${smokeStage}\n`);
   await openEntry(entry.id, true);
   const reading = await window.webContents.executeJavaScript("document.getElementById('text')?.textContent.includes('橘猫')");
   if (!reading) throw new Error('Secure reader did not render.');
+  smokeStage = 'switch to cover PDF'; process.stdout.write(`${smokeStage}\n`);
   await coverSecure();
   if (vault.unlocked || currentTab !== 'normal' || !pdf?.cover) throw new Error('Focus cover did not lock and open the PDF.');
   for (let i = 0; i < 40; i++) {
@@ -296,15 +305,17 @@ async function runSmoke() {
     if (i === 39) throw new Error('PDF viewer did not render.');
     await new Promise(resolve => setTimeout(resolve, 250));
   }
+  smokeStage = 'unlock and resume'; process.stdout.write(`${smokeStage}\n`);
   await showSecure();
   vault.unlock('test4321');
   await openEntry(resumeId, true);
   const resumed = await window.webContents.executeJavaScript("document.getElementById('text')?.textContent.includes('橘猫')");
   if (!resumed) throw new Error('Secure reader did not resume.');
   process.stdout.write('Windows app smoke passed: read, cover PDF, lock, resume.\n');
-  app.exit(0);
+  process.exit(0);
 }
 app.whenReady().then(async () => {
+  smokeStage = 'create window';
   app.setAppUserModelId('com.youdisn.fishtouching-reader');
   root = process.argv.includes('--smoke') && process.env.FISHTOUCHING_SMOKE_ROOT
     ? path.resolve(process.env.FISHTOUCHING_SMOKE_ROOT)
@@ -334,7 +345,7 @@ app.whenReady().then(async () => {
   ipcMain.on('pdf-secure', async event => { if (event.sender !== window?.webContents) return;
     if (pdf) { pdf.data.fill(0); pdf = null; } await showSecure(); });
   await createWindow();
-  if (process.argv.includes('--smoke')) await runSmoke();
-}).catch(e => { process.stderr.write(`${e.stack || e}\n`); app.exit(1); });
+  if (smokeMode) await runSmoke();
+}).catch(e => { process.stderr.write(`${e.stack || e}\n`); process.exit(1); });
 app.on('will-quit', () => { globalShortcut.unregisterAll(); vault?.lock(); });
 app.on('window-all-closed', () => { if (quitting) app.quit(); });
