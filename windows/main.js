@@ -13,7 +13,7 @@ let root, vault, publicLibrary, preferences, window, settingsWindow, tray;
 let currentTab = 'normal', currentId = null, resumeId = null, pdf = null, pending = null;
 let busy = false, switching = false, dialogOpen = false, quitting = false;
 let batchGeneration = 0;
-const smokeMode = process.argv.includes('--smoke');
+const smokeMode = Boolean(process.env.FISHTOUCHING_SMOKE_ROOT) || process.argv.includes('--smoke');
 let smokeStage = 'waiting for Electron';
 if (smokeMode) {
   app.commandLine.appendSwitch('disable-gpu');
@@ -320,10 +320,10 @@ async function runSmoke() {
 app.whenReady().then(async () => {
   smokeStage = 'create window';
   app.setAppUserModelId('com.youdisn.fishtouching-reader');
-  root = process.argv.includes('--smoke') && process.env.FISHTOUCHING_SMOKE_ROOT
+  root = smokeMode && process.env.FISHTOUCHING_SMOKE_ROOT
     ? path.resolve(process.env.FISHTOUCHING_SMOKE_ROOT)
     : path.join(app.getPath('appData'), 'FishTouching Reader');
-  if (process.argv.includes('--smoke')) app.setPath('userData', root);
+  if (smokeMode) app.setPath('userData', root);
   fs.mkdirSync(root, { recursive: true });
   preferences = fs.existsSync(preferencePath()) ? JSON.parse(fs.readFileSync(preferencePath(), 'utf8')) : { name: DEFAULT_NAME, iconID: 'fish' };
   if (preferences.pendingName) { preferences.name = preferences.pendingName; delete preferences.pendingName; savePreferences(); }
