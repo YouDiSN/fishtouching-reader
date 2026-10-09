@@ -30,11 +30,23 @@ jobs:
         run: npm run prepare:assets --prefix windows
       - name: Exercise reader and focus cover
         shell: pwsh
+        timeout-minutes: 3
         env:
           FISHTOUCHING_SMOKE_ROOT: ${{ runner.temp }}\fishtouching-reader-smoke
         run: |
-          & windows/node_modules/.bin/electron.cmd windows --smoke
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $ok = Join-Path $env:FISHTOUCHING_SMOKE_ROOT 'smoke-ok.txt'
+          $out = Join-Path $env:RUNNER_TEMP 'electron-smoke.out'
+          $err = Join-Path $env:RUNNER_TEMP 'electron-smoke.err'
+          $process = Start-Process -FilePath 'windows/node_modules/electron/dist/electron.exe' -ArgumentList 'windows', '--smoke' -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+          try {
+            for ($i = 0; $i -lt 90 -and !(Test-Path $ok) -and !$process.HasExited; $i++) { Start-Sleep -Seconds 1 }
+            Get-Content $out -ErrorAction SilentlyContinue
+            Get-Content $err -ErrorAction SilentlyContinue
+            if (!(Test-Path $ok)) { throw 'Electron smoke did not complete.' }
+            Write-Output (Get-Content $ok)
+          } finally {
+            if (!$process.HasExited) { Stop-Process -Id $process.Id -Force }
+          }
       - name: Package portable Windows app
         run: npm run package:win --prefix windows
       - name: Create ZIP

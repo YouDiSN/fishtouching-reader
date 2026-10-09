@@ -311,6 +311,7 @@ async function runSmoke() {
   await openEntry(resumeId, true);
   const resumed = await window.webContents.executeJavaScript("document.getElementById('text')?.textContent.includes('橘猫')");
   if (!resumed) throw new Error('Secure reader did not resume.');
+  fs.writeFileSync(path.join(root, 'smoke-ok.txt'), 'read, cover PDF, lock, resume');
   process.stdout.write('Windows app smoke passed: read, cover PDF, lock, resume.\n');
   process.exit(0);
 }
