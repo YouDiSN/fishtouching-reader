@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>摸鱼阅读</title>
+<style>
+  :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #101716; color: #e8eee9; }
+  button, input, select { font: inherit; }
+  button { cursor: pointer; border: 0; border-radius: 9px; padding: 10px 16px; background: #438868; color: #fff; }
+  button.secondary { color: #dce9df; background: #293a33; }
+  button.ghost { background: transparent; color: #afc9b9; padding: 7px 10px; }
+  input { width: 100%; padding: 12px 14px; border: 1px solid #3c5047; border-radius: 9px; background: #15201c; color: #e8eee9; outline: none; }
+  input:focus { border-color: #67ac84; }
+  select { border: 1px solid #3c5047; border-radius: 9px; padding: 8px 10px; background: #15201c; color: #e8eee9; cursor: pointer; }
+  .shell { max-width: 860px; margin: 0 auto; padding: 40px 32px 70px; }
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 28px; }
+  .global-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
+  .global-header .tabs { margin-bottom: 0; }
+  .tabs button { background: #26362e; color: #b9cbbd; }
+  .tabs button.active { background: #438868; color: white; }
+  .tabs button.icon-tab { width: 42px; height: 42px; padding: 10px; display: inline-flex; align-items: center; justify-content: center; }
+  .icon-tab svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .settings-button { width: 42px; height: 42px; padding: 10px; display: inline-flex; align-items: center; justify-content: center; }
+  .settings-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .setup-icons { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .setup-icon { padding: 6px; background: #26362e; border: 1px solid #486352; }
+  .setup-icon.active { border-color: #96daa8; box-shadow: 0 0 0 2px #96daa855; }
+  .setup-icon img { width: 100%; aspect-ratio: 1; object-fit: contain; }
+  h1 { font-size: 26px; letter-spacing: -.03em; margin: 0 0 8px; }
+  h2 { font-size: 17px; margin: 0 0 14px; }
+  .muted { color: #a0b3a7; font-size: 13px; }
+  .card { background: #1a2520; border: 1px solid #34483d; border-radius: 14px; box-shadow: 0 8px 25px rgba(0,0,0,.14); }
+  .lock { max-width: 410px; margin: 13vh auto 0; padding: 30px; }
+  .lock p { line-height: 1.6; margin: 0 0 24px; }
+  .stack { display: grid; gap: 12px; }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .library-tools { margin-top: 32px; display: grid; gap: 20px; }
+  .import { padding: 22px; }
+  .import .row { margin-top: 12px; }
+  .import input { flex: 1; }
+  .books { margin-top: 18px; display: grid; gap: 10px; }
+  .recent { margin-top: 28px; padding: 18px 20px; }
+  .recent summary { cursor: pointer; font-size: 17px; font-weight: 600; }
+  .recent summary .muted { margin-left: 8px; font-weight: 400; }
+  .recent .books { margin-top: 16px; }
+  .book-item { padding: 18px 20px; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+  .book-item > div:first-child { min-width: 0; flex: 1; }
+  .book-title { overflow-wrap: anywhere; font-size: 14px; line-height: 1.55; }
+  .book-item .muted { margin-top: 5px; }
+  .progress-track { height: 5px; margin-top: 8px; border-radius: 5px; background: #31443a; overflow: hidden; }
+  .progress-track span { display: block; height: 100%; border-radius: inherit; background: #66aa83; }
+  .message { margin: 18px 0; padding: 12px 15px; background: #473526; border-radius: 9px; color: #f5d6a7; }
+  .preview { padding: 24px; margin-top: 28px; }
+  .sample { background: #121c18; padding: 20px; border-radius: 10px; white-space: pre-wrap; line-height: 1.9; max-height: 320px; overflow: auto; font-family: serif; }
+  .reader-head { position: sticky; top: 0; z-index: 2; background: rgba(16,23,22,.96); backdrop-filter: blur(12px); border-bottom: 1px solid #34483d; padding: 14px 24px; display: flex; gap: 12px; align-items: center; }
+  .reader-head .tabs { margin: 0; }
+  .reader-head .title { flex: 1; min-width: 0; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; font-size: 13px; color: #acc1b1; }
+  .reader { max-width: 760px; margin: 0 auto; padding: 28px 40px 110px; }
+  .reader-text { font-family: "Songti SC", "Noto Serif CJK SC", serif; font-size: var(--font-size, 19px); line-height: 1.95; color: #e5e7dc; }
+  .reader-text p { margin: 0 0 1.05em; overflow-wrap: anywhere; }
+  .reader-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 40px; }
+  .reader-controls { display: flex; align-items: center; gap: 4px; }
+  @media(max-width:700px) { .shell { padding: 24px 18px; } .reader { padding: 18px 24px 80px; } }
+</style>
+</head>
+<body><main id="app"></main>
+<script>
+const app = document.getElementById('app');
+let state = {type:'hidden'};
+let book = null;
+let chunk = 0;
+let fontSize = Number(localStorage.getItem('fontSize') || 19);
+let layoutMode = localStorage.getItem('layoutMode') || 'clean';
+let displayParagraphs = [];
+let decodeTitles = true;
+let bookSort = ['recent','short','long'].includes(localStorage.getItem('bookSort')) ? localStorage.getItem('bookSort') : 'recent';
+let importURL = '';
+let indexURL = 'https://example.invalid/removed';
+let progressTimer;
+let setupIconID = 'fish';
+const chunkSize = 350;
+function post(action, data={}) { window.webkit?.messageHandlers?.app?.postMessage({action,...data}); }
+function h(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function title(s) { if (!decodeTitles) return s; try { return decodeURIComponent(s); } catch { return s; } }
+function progressHTML(position,total,detail) {
+  const percent=total>0?Math.max(0,Math.min(100,Math.round(100*position/total))):0;
+  return `<div class="muted">${h(detail)} · ${percent}%</div><div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><span style="width:${percent}%"></span></div>`;
+}
+function readDate(seconds) { return new Date(seconds*1000).toLocaleString('zh-CN',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
+function recentOpen(key) { return localStorage.getItem(key)==='false'?'':' open'; }
+function bindRecent(id,key) { document.getElementById(id).ontoggle=e=>localStorage.setItem(key,String(e.target.open)); }
+function receive(next) {
+  if (next.type==='error') { state = {...state, type:next.context, error:next.message}; }
+  else if (next.type==='busy') { state = {...state, busy:next.message, error:null}; }
+  else if (next.type==='batch') { state = {...state, batchStatus:next.message, batchRunning:true, error:null}; }
+  else { state=next; if (next.type==='preview') importURL=''; }
+  if (state.type!=='book') { book=null; displayParagraphs=[]; clearTimeout(progressTimer); window.onscroll=null; }
+  render();
+}
+function tabs(active) { return `<nav class="tabs"><button class="${active==='normal'?'active':''}" id="normalTab">我的</button><button class="icon-tab ${active==='secure'?'active':''}" id="secureTab" aria-label="加密书库" title="加密书库"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></svg></button></nav>`; }
+function settingsButton() { return `<button class="secondary settings-button" id="settings" aria-label="设置" title="设置 (⌘,)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 2.5h3l.5 2.1a7.8 7.8 0 0 1 1.8.8l1.9-1.1 2.1 2.1-1.1 1.9a7.8 7.8 0 0 1 .8 1.8l2.1.5v3l-2.1.5a7.8 7.8 0 0 1-.8 1.8l1.1 1.9-2.1 2.1-1.9-1.1a7.8 7.8 0 0 1-1.8.8l-.5 2.1h-3l-.5-2.1a7.8 7.8 0 0 1-1.8-.8l-1.9 1.1-2.1-2.1 1.1-1.9a7.8 7.8 0 0 1-.8-1.8l-2.1-.5v-3l2.1-.5a7.8 7.8 0 0 1 .8-1.8L4.2 6.4l2.1-2.1 1.9 1.1a7.8 7.8 0 0 1 1.8-.8z"/><circle cx="12" cy="12" r="3"/></svg></button>`; }
+function globalHeader(active) { return `<div class="global-header">${tabs(active)}${settingsButton()}</div>`; }
+function bindTabs() {
+  document.getElementById('normalTab')?.addEventListener('click',()=>post('selectNormal'));
+  document.getElementById('secureTab')?.addEventListener('click',()=>post('selectSecure'));
+  document.getElementById('settings')?.addEventListener('click',()=>post('settings'));
+}
+function render() {
+  if (state.type==='hidden') { app.innerHTML=''; return; }
+  if (state.type==='errorScreen') return renderError();
+  if (state.type==='setup') return renderSetup();
+  if (state.type==='normal') return renderNormal();
+  if (state.type==='locked') return renderLocked();
+  if (state.type==='library') return renderLibrary();
+  if (state.type==='preview') return renderPreview();
+  if (state.type==='book') return renderBook();
+}
+function renderNormal() {
+  app.innerHTML=`<div class="shell">${globalHeader('normal')}<div><h1>我的书库</h1><div class="muted">这里的书籍切换应用时保持原样</div></div>
+    ${state.error?`<div class="message">${h(state.error)}</div>`:''}
+    <details class="card recent" id="recentPDF"${recentOpen('recentPDFOpen')}><summary>最近阅读<span class="muted" id="recentPDFCount"></span></summary><div class="books" id="recentPDFs"></div></details>
+    <div class="library-tools"><div class="card import"><h2>添加书籍</h2><p class="muted">支持本机 TXT、PDF。</p><button id="importPDF">＋ 添加本地文件</button></div>
+    <div><h2>已添加</h2><div class="books" id="pdfs"></div></div></div></div>`;
+  bindTabs();
+  bindRecent('recentPDF','recentPDFOpen');
+  document.getElementById('importPDF').onclick=()=>post('importLocal');
+  const pdfs=state.pdfs||[];
+  const recent=pdfs.filter(pdf=>pdf.updatedAt>0).sort((a,b)=>b.updatedAt-a.updatedAt);
+  document.getElementById('recentPDFCount').textContent=`${recent.length} 本`;
+  renderPDFItems(recent,document.getElementById('recentPDFs'),true);
+  renderPDFItems(pdfs,document.getElementById('pdfs'),false);
+}
+function renderPDFItems(pdfs,list,isRecent) {
+  if (!pdfs.length) { list.innerHTML=`<div class="muted">${isRecent?'还没有阅读过的 PDF':'还没有 PDF'}</div>`; return; }
+  list.innerHTML='';
+  for (const pdf of pdfs) {
+    const item=document.createElement('div'); item.className='card book-item';
+    const pageCount=Math.max(0,pdf.pageCount||0);
+    const pageIndex=Math.max(0,Math.min(Math.max(0,pageCount-1),pdf.pageIndex||0));
+    const fraction=Math.max(0,Math.min(1,pdf.pageFraction||0));
+    const detail=pageCount?`${pdf.kind==='text'?'第':'第'} ${pageIndex+1} / ${pageCount} ${pdf.kind==='text'?'段':'页'}`:'进度未知';
+    item.innerHTML=`<div><div class="book-title">${h(pdf.title)}</div>${progressHTML(pageIndex+fraction,pageCount,detail)}${isRecent?`<div class="muted">上次阅读 ${h(readDate(pdf.updatedAt))}</div>`:''}</div>`;
+    const button=document.createElement('button'); button.textContent=isRecent?'继续阅读':'打开'; button.onclick=()=>post('openPDF',{id:pdf.id});
+    item.append(button); list.append(item);
+  }
+}
+function renderLocked() {
+  app.innerHTML=`<div class="shell">${globalHeader('secure')}<div class="card lock"><h1>加密书库</h1><p class="muted">输入密码后继续阅读</p>
+    ${state.error?`<div class="message">${h(state.error)}</div>`:''}
+    <form class="stack" id="unlock"><input id="password" type="password" autocomplete="off" placeholder="密码" required><button type="submit">打开加密书库</button></form></div></div>`;
+  bindTabs();
+  document.getElementById('unlock').onsubmit=e=>{e.preventDefault();post('unlock',{password:document.getElementById('password').value});};
+}
+function renderSetup() {
+  app.innerHTML=`<div class="shell"><div class="card lock"><h1>首次设置</h1><p class="muted">设置应用名称和加密书库密码。旧书会在保存时迁移。</p>
+    ${state.error?`<div class="message">${h(state.error)}</div>`:''}
+    <form class="stack" id="setup"><label>应用名称<input id="appName" value="摸鱼阅读" maxlength="40"></label>
+      <input id="newPassword" type="password" autocomplete="new-password" placeholder="设置密码（至少 4 个字符）" required>
+      <input id="confirmPassword" type="password" autocomplete="new-password" placeholder="再次输入密码" required>
+      <div class="muted">选择 Dock 图标</div><div class="setup-icons" id="setupIcons"></div>
+      <button type="button" class="secondary" id="chooseIcon">选择自己的图片…</button><div class="muted">自定义图片建议至少 1024×1024 像素的正方形 PNG 原图。</div>
+      <button type="submit">完成设置</button></form></div></div>`;
+  document.getElementById('setupIcons').innerHTML=[['fish','摸鱼'],['book','书本'],['night','夜读'],['leaf','绿叶'],['coffee','咖啡'],['star','星星'],['pencil','铅笔'],['music','音乐'],['sunrise','日出'],['cloud','云朵']].map(([id,label])=>`<button type="button" class="setup-icon" data-icon="${id}" aria-label="使用${label}图标"><img src="Icons/${id}.png" alt=""></button>`).join('');
+  document.querySelectorAll('.setup-icon').forEach(button=>button.onclick=()=>post('selectIcon',{id:button.dataset.icon}));
+  selectSetupIcon(state.iconID||setupIconID);
+  document.getElementById('chooseIcon').onclick=()=>post('chooseIcon');
+  document.getElementById('setup').onsubmit=e=>{e.preventDefault();post('setup',{name:document.getElementById('appName').value,password:document.getElementById('newPassword').value,confirm:document.getElementById('confirmPassword').value});};
+}
+function selectSetupIcon(id) { setupIconID=id; document.querySelectorAll('.setup-icon').forEach(button=>button.classList.toggle('active',button.dataset.icon===id)); }
+function renderError() {
+  app.innerHTML=`<div class="shell">${globalHeader('secure')}<div class="card lock"><h1>书库暂时无法打开</h1><div class="message">${h(state.error)}</div><button id="retry">重试</button></div></div>`;
+  bindTabs();
+  document.getElementById('retry').onclick=()=>post('retry');
+}
+function renderLibrary() {
+  app.innerHTML = `<div class="shell">${globalHeader('secure')}<div class="top"><div><h1>加密书库</h1><div class="muted">已保存 ${state.books?.length||0} 本</div></div><button class="secondary" id="lock">锁定</button></div>
+    ${state.error ? `<div class="message">${h(state.error)}</div>` : ''}
+    <details class="card recent" id="recentBook"${recentOpen('recentBookOpen')}><summary>最近阅读<span class="muted" id="recentBookCount"></span></summary><div class="books" id="recentBooks"></div></details>
+    <div class="library-tools"><div class="card import"><h2>添加书籍</h2><button id="importLocal">＋ 添加本地文件</button><div class="muted" style="margin-top:10px">支持 TXT、PDF</div>
+      ${state.busy ? `<div class="muted" style="margin-top:12px">${h(state.busy)}</div>` : ''}</div>
+      <details class="card import"><summary>从网址导入</summary><p class="muted">常见文章结构可自动提取，保存前请核对预览。分页或动态页面需要单独适配。</p>
+      <form class="row" id="import"><input id="url" type="url" placeholder="粘贴文章网址" required><button type="submit" ${state.busy||state.batchRunning?'disabled':''}>提取正文</button></form>
+      <p class="muted">目录导入会逐篇保存同站点文章。</p>
+      <form class="row" id="importIndex"><input id="indexUrl" type="url" placeholder="粘贴小说目录网址" required><button type="submit" ${state.batchRunning?'disabled':''}>导入目录</button></form>
+      ${state.batchStatus?`<div class="muted" style="margin-top:12px">${h(state.batchStatus)}</div>`:''}
+      ${state.batchFailures?.length?`<details style="margin-top:12px"><summary>查看未导入的文章</summary>${state.batchFailures.map(url=>`<div class="muted" style="margin-top:8px;overflow-wrap:anywhere">${h(url)}</div>`).join('')}</details>`:''}</details>
+      <div><div class="top"><h2>全部书籍</h2><div class="row"><label class="muted" for="bookSort">排序</label><select id="bookSort"><option value="recent">最近阅读</option><option value="short">字数：从少到多</option><option value="long">字数：从多到少</option></select><button class="ghost" id="decode">${decodeTitles?'显示编码标题':'显示中文标题'}</button></div></div>
+      <input id="search" placeholder="搜索书名或站点"><div class="books" id="books"></div></div></div></div>`;
+  document.getElementById('lock').onclick=()=>post('lock');
+  document.getElementById('importLocal').onclick=()=>post('importLocal');
+  bindTabs();
+  bindRecent('recentBook','recentBookOpen');
+  document.getElementById('url').value=importURL;
+  document.getElementById('url').oninput=e=>{importURL=e.target.value;};
+  document.getElementById('indexUrl').value=indexURL;
+  document.getElementById('indexUrl').oninput=e=>{indexURL=e.target.value;};
+  document.getElementById('decode').onclick=()=>{decodeTitles=!decodeTitles;renderLibrary();};
+  document.getElementById('bookSort').value=bookSort;
+  document.getElementById('bookSort').onchange=e=>{bookSort=e.target.value;localStorage.setItem('bookSort',bookSort);renderBooks();};
+  document.getElementById('import').onsubmit=e=>{e.preventDefault();importURL=document.getElementById('url').value;post('import',{url:importURL});};
+  document.getElementById('importIndex').onsubmit=e=>{e.preventDefault();indexURL=document.getElementById('indexUrl').value;post('importIndex',{url:indexURL});};
+  document.getElementById('search').oninput=renderBooks;
+  const recent=(state.books||[]).filter(b=>b.updatedAt>0).sort((a,b)=>b.updatedAt-a.updatedAt);
+  document.getElementById('recentBookCount').textContent=`${recent.length} 本`;
+  renderBookItems(recent,document.getElementById('recentBooks'),true);
+  renderBooks();
+}
+function renderBooks() {
+  const list=document.getElementById('books'); if (!list) return;
+  const q=document.getElementById('search').value.toLowerCase();
+  const books=sortBooks((state.books||[]).filter(b=>(b.title+' '+title(b.title)+' '+b.host).toLowerCase().includes(q)),bookSort);
+  renderBookItems(books,list,false);
+}
+function sortBooks(books,mode) {
+  const sorted=[...books];
+  if (mode==='short') sorted.sort((a,b)=>a.wordCount-b.wordCount || title(a.title).localeCompare(title(b.title),'zh-CN'));
+  if (mode==='long') sorted.sort((a,b)=>b.wordCount-a.wordCount || title(a.title).localeCompare(title(b.title),'zh-CN'));
+  return sorted;
+}
+function renderBookItems(books,list,isRecent) {
+  if (!books.length) { list.innerHTML=`<div class="muted">${isRecent?'还没有阅读过的小说':'没有匹配的书籍'}</div>`; return; }
+  list.innerHTML='';
+  for (const b of books) {
+    const item=document.createElement('div'); item.className='card book-item';
+    const label=document.createElement('div'); label.innerHTML=`<div class="book-title">${h(title(b.title))}</div><div class="muted">${h(b.host)} · ${b.kind==='pdf'?`${b.pageCount} 页`:`正文 ${Number(b.wordCount||0).toLocaleString('zh-CN')} 字`}</div>${progressHTML((b.paragraph||0)+(b.fraction||0),b.kind==='pdf'?b.pageCount:b.count,b.kind==='pdf'?`第 ${(b.paragraph||0)+1} / ${b.pageCount} 页`:`${b.count} 段`)}${isRecent?`<div class="muted">上次阅读 ${h(readDate(b.updatedAt))}</div>`:''}`;
+    const button=document.createElement('button'); button.textContent='继续阅读'; button.disabled=!!state.batchRunning; button.onclick=()=>post('read',{id:b.id});
+    item.append(label,button); list.append(item);
+  }
+}
+function renderPreview() {
+  app.innerHTML=`<div class="shell">${globalHeader('secure')}<div class="top"><h1>导入预览</h1><button class="secondary" id="cancel">返回书库</button></div>
+    ${state.error ? `<div class="message">${h(state.error)}</div>` : ''}
+    <div class="card preview"><h2>${h(state.originalTitle || title(state.encodedTitle))}</h2><div class="muted">${state.count} 段</div>
+    <p class="muted">预览前 8 段，保存后可离线阅读。</p><div class="sample">${h(state.sample)}</div>
+    <div style="margin-top:18px"><button id="save">保存到书库</button></div></div></div>`;
+  document.getElementById('cancel').onclick=()=>post('cancelImport');
+  bindTabs();
+  document.getElementById('save').onclick=()=>post('saveImport');
+}
+function renderBook() {
+  book=state; buildDisplayParagraphs();
+  const savedIndex=Math.max(0,displayParagraphs.findIndex(p=>p.end >= (state.paragraph||0)));
+  chunk=Math.floor(savedIndex/chunkSize);
+  app.innerHTML=`<div class="reader-head">${tabs(state.tab||'secure')}<button class="secondary" id="back">书库</button><div class="title">${h(title(state.encodedTitle))}</div>
+      <div class="reader-controls"><button class="ghost" id="layout">${layoutMode==='clean'?'原始排版':'整理排版'}</button><button class="ghost" id="smaller">A−</button><button class="ghost" id="larger">A＋</button></div>
+      ${state.tab==='normal'?'':'<button id="lock">锁定</button>'}${settingsButton()}</div><div class="reader"><div class="muted" id="position"></div><div class="reader-text" id="text"></div>
+      <div class="reader-foot"><button class="secondary" id="prev">上一段</button><span class="muted" id="page"></span><button class="secondary" id="next">下一段</button></div></div>`;
+  document.getElementById('back').onclick=()=>{flushProgress();post('library');};
+  bindTabs();
+  if(document.getElementById('lock')) document.getElementById('lock').onclick=()=>post('lock');
+  document.getElementById('layout').onclick=()=>{
+    const p=currentProgress(); layoutMode=layoutMode==='clean'?'raw':'clean';localStorage.setItem('layoutMode',layoutMode);
+    book.paragraph=p?.paragraph||0; book.fraction=p?.fraction||0; renderBook();
+  };
+  document.getElementById('smaller').onclick=()=>changeFont(-1);
+  document.getElementById('larger').onclick=()=>changeFont(1);
+  document.getElementById('prev').onclick=()=>showChunk(chunk-1);
+  document.getElementById('next').onclick=()=>showChunk(chunk+1);
+  window.onscroll=()=>{clearTimeout(progressTimer);progressTimer=setTimeout(flushProgress,500);};
+  showChunk(chunk,savedIndex,state.fraction||0);
+}
+function buildDisplayParagraphs() {
+  displayParagraphs=[];
+  const stop=/[。！？!?…：:；;”」』）》]$/;
+  const marker=/^[（(][一二三四五六七八九十百千0-9]+[）)]$/;
+  book.paragraphs.forEach((text,i)=>{
+    const last=displayParagraphs.at(-1);
+    if(layoutMode==='clean' && last && !stop.test(last.text) && !marker.test(last.text) && !marker.test(text)) {
+      last.text+=text;last.end=i;
+    } else displayParagraphs.push({text,start:i,end:i});
+  });
+}
+function changeFont(delta) { fontSize=Math.max(15,Math.min(30,fontSize+delta));localStorage.setItem('fontSize',fontSize);document.getElementById('text')?.style.setProperty('--font-size',fontSize+'px'); }
+function showChunk(index, paragraph=index*chunkSize, fraction=0) {
+  if (!book) return;
+  const max=Math.max(0,Math.ceil(displayParagraphs.length/chunkSize)-1);
+  chunk=Math.max(0,Math.min(max,index));
+  const start=chunk*chunkSize, end=Math.min(displayParagraphs.length,start+chunkSize);
+  const container=document.getElementById('text'); container.textContent=''; container.style.setProperty('--font-size',fontSize+'px');
+  const fragment=document.createDocumentFragment();
+  for(let i=start;i<end;i++){const p=document.createElement('p');p.dataset.index=i;p.textContent=displayParagraphs[i].text;fragment.append(p);}
+  container.append(fragment);
+  document.getElementById('position').textContent=`原文第 ${displayParagraphs[start].start+1}–${displayParagraphs[end-1].end+1} 段 / 共 ${book.paragraphs.length} 段`;
+  document.getElementById('page').textContent=`${chunk+1} / ${max+1}`;
+  document.getElementById('prev').disabled=chunk===0;
+  document.getElementById('next').disabled=chunk===max;
+  requestAnimationFrame(()=>{
+    const p=container.querySelector(`[data-index="${paragraph}"]`)||container.firstElementChild;
+    if(p) window.scrollTo(0,Math.max(0,p.getBoundingClientRect().top+window.scrollY-80+p.offsetHeight*fraction));
+    flushProgress();
+  });
+}
+function currentProgress() {
+  if (!book) return null;
+  const paragraphs=[...document.querySelectorAll('#text p')];
+  let selected=paragraphs[0];
+  for(const p of paragraphs){if(p.getBoundingClientRect().top<=90) selected=p; else break;}
+  if(!selected) return null;
+  const rect=selected.getBoundingClientRect();
+  const group=displayParagraphs[Number(selected.dataset.index)];
+  const fraction=Math.max(0,Math.min(1,(90-rect.top)/Math.max(1,rect.height)));
+  return {paragraph:group.start+Math.floor(fraction*(group.end-group.start+1)),fraction};
+}
+function flushProgress() { const p=currentProgress(); if(p)post('progress',p); }
+function prepareSecureLock() { const progress=currentProgress();clearTimeout(progressTimer);book=null;displayParagraphs=[];window.onscroll=null;state={type:'hidden'};app.innerHTML='';return progress; }
+</script>
+</body>
+</html>

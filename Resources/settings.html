@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>设置</title>
+<style>
+:root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+* { box-sizing: border-box; }
+body { margin: 0; color: #e8ede9; background: #151b19; font-size: 13px; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+.layout { display: grid; grid-template-columns: 212px minmax(0,1fr); min-height: 100vh; }
+.sidebar { padding: 32px 12px 20px; background: #1c2420; border-right: 1px solid #354139; }
+.brand { display: flex; align-items: center; gap: 11px; padding: 7px 12px 24px; border-bottom: 1px solid #344139; margin-bottom: 18px; }
+.brand img { width: 36px; height: 36px; object-fit: contain; border-radius: 8px; }
+.brand-name { min-width: 0; font-weight: 650; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.brand-sub { color: #90a49a; font-size: 11px; margin-top: 3px; }
+.nav-title { color: #82958a; font-size: 11px; font-weight: 650; letter-spacing: .06em; padding: 0 12px 8px; }
+.nav button { display: flex; align-items: center; gap: 11px; width: 100%; border: 0; border-radius: 8px; padding: 10px 12px; margin: 2px 0; text-align: left; background: transparent; color: #bdcbc1; }
+.nav button.active { background: #365b46; color: #f4fff7; font-weight: 600; }
+.nav svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.content { padding: 38px 42px 40px; max-width: 590px; }
+h1 { margin: 0 0 6px; font-size: 25px; font-weight: 670; letter-spacing: -.025em; }
+.subtitle { color: #a4b5aa; line-height: 1.6; margin: 0 0 28px; }
+.section-title { font-weight: 650; margin: 0 0 11px; color: #dfe9e1; }
+.card { background: #202b24; border: 1px solid #3a4c3f; border-radius: 12px; overflow: hidden; }
+.setting { padding: 18px 20px; }
+.setting + .setting { border-top: 1px solid #3a4c3f; }
+.label { font-weight: 600; margin-bottom: 5px; }
+.help { color: #9eb1a3; line-height: 1.55; font-size: 12px; }
+.field-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+input { width: 100%; min-width: 0; padding: 10px 12px; background: #131d17; border: 1px solid #526b56; border-radius: 8px; color: #f0f5f0; outline: none; }
+input:focus { border-color: #8dd0a0; box-shadow: 0 0 0 3px #8dd0a025; }
+.primary, .secondary { flex: none; border-radius: 8px; padding: 10px 16px; font-weight: 600; }
+.primary { border: 1px solid #6fbd84; background: #519c68; color: #fff; }
+.primary:hover { background: #60aa75; }
+.secondary { border: 1px solid #566c5a; background: #344638; color: #e7f0e8; }
+.secondary:hover { background: #405946; }
+.icon-row { display: flex; align-items: center; gap: 18px; margin-top: 16px; }
+.icon-preview { width: 72px; height: 72px; border-radius: 16px; border: 1px solid #607568; background: #142017; display: flex; align-items: center; justify-content: center; }
+.icon-preview img { width: 58px; height: 58px; object-fit: contain; }
+.icon-actions { display: grid; gap: 7px; justify-items: start; }
+.icon-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 17px; }
+.icon-choice { min-width: 0; padding: 8px; border: 1px solid #43584a; border-radius: 10px; background: #17231c; color: #b8cabe; display: grid; justify-items: center; }
+.icon-choice:hover { border-color: #87b98d; background: #23372a; }
+.icon-choice.active { border-color: #83d89a; box-shadow: 0 0 0 2px #83d89a55; color: #fff; }
+.icon-choice img { width: 55px; height: 55px; object-fit: contain; }
+.icon-custom { position: relative; min-width: 0; }
+.icon-custom .icon-choice { width: 100%; height: 100%; }
+.icon-delete { position: absolute; top: -7px; right: -7px; width: 23px; height: 23px; padding: 0; border: 1px solid #b58c85; border-radius: 50%; background: #713f3d; color: #fff; font-size: 18px; line-height: 20px; }
+.icon-delete:hover { background: #a34e48; }
+.form-grid { display: grid; gap: 16px; padding: 20px; }
+.form-grid label { display: grid; gap: 7px; font-weight: 600; }
+.form-grid label span { color: #a3b4a8; font-weight: 400; font-size: 11px; }
+.actions { display: flex; align-items: center; gap: 14px; }
+.notice { min-height: 20px; color: #a7d9b0; font-size: 12px; }
+.notice.error { color: #f0ab9c; }
+.success-dialog { width: 300px; max-width: calc(100vw - 40px); padding: 26px; border: 1px solid #638f6c; border-radius: 14px; background: #233128; color: #edf6ee; box-shadow: 0 24px 80px #0009; text-align: center; }
+.success-dialog::backdrop { background: #090f0bc2; }
+.success-mark { width: 44px; height: 44px; display: grid; place-items: center; margin: 0 auto 14px; border-radius: 50%; background: #4f9b67; color: white; font-size: 26px; }
+.success-dialog h2 { margin: 0 0 8px; font-size: 18px; }
+.success-dialog p { margin: 0 0 20px; color: #b5c9b9; line-height: 1.5; }
+.dialog-actions { display: flex; justify-content: center; gap: 10px; }
+.hidden { display: none; }
+@media(max-width:700px) { .layout { grid-template-columns: 170px minmax(0,1fr); } .content { padding: 28px 26px; } .field-row { flex-wrap: wrap; } }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand"><img id="brandIcon" alt="应用图标"><div><div class="brand-name" id="brandName">摸鱼阅读</div><div class="brand-sub">偏好设置</div></div></div>
+    <div class="nav-title">设置</div>
+    <nav class="nav" aria-label="设置分类">
+      <button id="navAppearance" class="active" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9c0-1.5-1.2-2.5-2.5-2.5H16a2 2 0 0 1-2-2V5.5C14 4.1 13.2 3 12 3Z"/><path d="M7 11h.01M9 7h.01M15 16h.01"/></svg>外观</button>
+      <button id="navSecurity" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></svg>密码与隐私</button>
+    </nav>
+  </aside>
+  <main class="content">
+    <section id="appearance">
+      <h1>外观</h1><p class="subtitle">自定义应用在 Dock 中显示的名称和图标。</p>
+      <div class="section-title">应用标识</div>
+      <div class="card">
+        <div class="setting"><div class="label">应用名称</div><div class="help">留空保存会使用“摸鱼阅读”；更改后重新打开应用，Dock 会显示新名称。</div>
+          <div class="field-row"><input id="appName" aria-label="应用名称" maxlength="40" spellcheck="false"><button class="primary" id="saveName">保存名称</button></div></div>
+        <div class="setting"><div class="label">Dock 图标</div><div class="help">点击内置图标即可使用。</div>
+          <div class="icon-grid" id="presetIcons" aria-label="内置图标"></div>
+          <div class="icon-row"><div class="icon-preview"><img id="iconPreview" alt="当前 Dock 图标"></div><div class="icon-actions"><button class="secondary" id="chooseIcon">选择自己的图片…</button><div class="help">推荐 1024×1024 像素或更大的正方形 PNG 原图；也支持 JPEG、HEIC、TIFF。小图放大后会模糊。</div></div></div></div>
+      </div>
+    </section>
+    <section id="security" class="hidden">
+      <h1>密码与隐私</h1><p class="subtitle">修改加密书库的密码。我的书库无需密码。</p>
+      <div class="section-title">修改密码</div>
+      <div class="card"><form id="passwordForm" class="form-grid" autocomplete="off">
+        <label>当前密码<input id="oldPassword" type="password" autocomplete="current-password" required></label>
+        <label>新密码 <span>至少 4 个字符</span><input id="newPassword" type="password" autocomplete="new-password" minlength="4" required></label>
+        <label>确认新密码<input id="confirmPassword" type="password" autocomplete="new-password" minlength="4" required></label>
+        <div class="actions"><button class="primary" type="submit">更新密码</button></div>
+      </form></div>
+      <p class="help" style="margin-top:16px">切出加密书库或加密书籍时，应用会显示我的书库的 PDF。其他书籍保持当前画面。</p>
+    </section>
+    <p class="notice" id="notice" role="status" aria-live="polite"></p>
+  </main>
+</div>
+<dialog id="passwordUpdated" class="success-dialog" aria-labelledby="successTitle"><div class="success-mark" aria-hidden="true">✓</div><h2 id="successTitle">密码已更新</h2><p>下次打开加密书库，请使用新密码。</p><button class="primary" id="dismissSuccess">知道了</button></dialog>
+<dialog id="restartDialog" class="success-dialog" aria-labelledby="restartTitle"><div class="success-mark" aria-hidden="true">↻</div><h2 id="restartTitle">名称已保存</h2><p>重新启动后，Command-Tab 和 Dock 会显示新名称。</p><div class="dialog-actions"><button class="secondary" id="restartLater">下次重启</button><button class="primary" id="restartNow">立即重启</button></div></dialog>
+<dialog id="deleteIconDialog" class="success-dialog" aria-labelledby="deleteIconTitle"><h2 id="deleteIconTitle">删除自定义图标？</h2><p>图标删除之后无法恢复，是否确认删除图标？原始图片文件不会被删除。</p><div class="dialog-actions"><button class="secondary" id="cancelDeleteIcon">取消</button><button class="primary" id="confirmDeleteIcon">删除图标</button></div></dialog>
+<script>
+const $ = id => document.getElementById(id);
+const presetIcons = [['fish','摸鱼'],['book','书本'],['night','夜读'],['leaf','绿叶'],['coffee','咖啡'],['star','星星'],['pencil','铅笔'],['music','音乐'],['sunrise','日出'],['cloud','云朵']];
+function post(action, data={}) { window.webkit?.messageHandlers?.settings?.postMessage({action,...data}); }
+function renderIconChoices(active, customIcon) {
+  const choices = presetIcons.map(([id,label])=>({id,label,src:`Icons/${id}.png`}));
+  if (customIcon) choices.push({id:'custom',label:'此前自定义',src:customIcon});
+  $('presetIcons').innerHTML = choices.map(({id,label,src})=>{
+    const button=`<button type="button" class="icon-choice ${active===id?'active':''}" data-icon="${id}" aria-label="使用${label}图标" aria-pressed="${active===id}"><img src="${src}" alt=""></button>`;
+    return id==='custom'?`<div class="icon-custom">${button}<button type="button" class="icon-delete" id="deleteCustomIcon" aria-label="删除自定义图标">×</button></div>`:button;
+  }).join('');
+  $('presetIcons').querySelectorAll('.icon-choice').forEach(button=>button.onclick=()=>post(button.dataset.icon==='custom'?'selectCustomIcon':'selectIcon',{id:button.dataset.icon}));
+  if ($('deleteCustomIcon')) $('deleteCustomIcon').onclick=()=>$('deleteIconDialog').showModal();
+}
+function select(section) {
+  $('appearance').classList.toggle('hidden',section!=='appearance');
+  $('security').classList.toggle('hidden',section!=='security');
+  $('navAppearance').classList.toggle('active',section==='appearance');
+  $('navSecurity').classList.toggle('active',section==='security');
+  $('notice').textContent=''; $('notice').classList.remove('error');
+}
+$('navAppearance').onclick=()=>select('appearance');
+$('navSecurity').onclick=()=>select('security');
+$('saveName').onclick=()=>post('saveName',{name:$('appName').value});
+$('chooseIcon').onclick=()=>post('chooseIcon');
+$('passwordForm').onsubmit=e=>{e.preventDefault();post('changePassword',{old:$('oldPassword').value,new:$('newPassword').value,confirm:$('confirmPassword').value});};
+$('dismissSuccess').onclick=()=>$('passwordUpdated').close();
+$('restartLater').onclick=()=>$('restartDialog').close();
+$('restartNow').onclick=()=>{ $('restartNow').disabled=true; post('restart'); };
+$('cancelDeleteIcon').onclick=()=>$('deleteIconDialog').close();
+$('confirmDeleteIcon').onclick=()=>{ $('deleteIconDialog').close(); post('deleteCustomIcon'); };
+function receiveSettings(data) {
+  if (data.name) { $('brandName').textContent=data.name; if (document.activeElement!==$('appName')) $('appName').value=data.name; }
+  if (data.icon) { $('brandIcon').src=data.icon; $('iconPreview').src=data.icon; }
+  if (data.iconID) renderIconChoices(data.iconID,data.customIcon);
+  if (data.message || data.error) {
+    $('notice').textContent=data.error||data.message;
+    $('notice').classList.toggle('error',!!data.error);
+    if (data.message==='密码已更新。') { $('passwordForm').reset(); $('passwordUpdated').showModal(); }
+  }
+  if (data.restartPrompt) { $('restartNow').disabled=false; $('restartDialog').showModal(); }
+}
+post('ready');
+</script>
+</body>
+</html>
