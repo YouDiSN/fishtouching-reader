@@ -9,12 +9,17 @@ on:
       - 'demo/fixtures/**'
       - '.github/workflows/windows.yml'
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing Release tag for the Windows ZIP
+        required: false
+        type: string
 
 jobs:
   windows:
     runs-on: windows-latest
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -57,3 +62,10 @@ jobs:
           name: FishTouching-Reader-Windows-x64-v1.0.0
           path: FishTouching-Reader-Windows-x64-v1.0.0.zip
           if-no-files-found: error
+      - name: Attach Windows ZIP to Release
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag != '' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: gh release upload $env:RELEASE_TAG 'FishTouching-Reader-Windows-x64-v1.0.0.zip' --clobber
