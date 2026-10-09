@@ -2,6 +2,17 @@
 const { app, BrowserWindow, ipcMain, dialog, globalShortcut, Menu, Tray, nativeImage } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
+const smokeRoot = process.env.FISHTOUCHING_SMOKE_ROOT;
+function traceSmoke(message) {
+  if (!smokeRoot) return;
+  try {
+    fs.mkdirSync(smokeRoot, { recursive: true });
+    fs.appendFileSync(path.join(smokeRoot, 'startup.log'), `${new Date().toISOString()} ${message}\n`);
+  } catch {}
+}
+traceSmoke(`main loaded: ${process.execPath}; argv=${JSON.stringify(process.argv)}`);
+process.on('uncaughtException', error => { traceSmoke(`uncaught: ${error.stack || error}`); process.exit(1); });
+process.on('unhandledRejection', error => { traceSmoke(`rejection: ${error?.stack || error}`); process.exit(1); });
 const { Vault, writeAtomic } = require('./vault');
 const { PublicLibrary, paragraphs } = require('./library');
 const importer = require('./importer');
@@ -17,7 +28,7 @@ const smokeMode = Boolean(process.env.FISHTOUCHING_SMOKE_ROOT) || process.argv.i
 let smokeStage = 'waiting for Electron';
 if (smokeMode) {
   app.commandLine.appendSwitch('disable-gpu');
-  setTimeout(() => { process.stderr.write(`Smoke timed out: ${smokeStage}\n`); process.exit(1); }, 60000).unref();
+  setTimeout(() => { traceSmoke(`timed out: ${smokeStage}`); process.stderr.write(`Smoke timed out: ${smokeStage}\n`); process.exit(1); }, 60000).unref();
 }
 
 function preferencePath() { return path.join(root, 'preferences.json'); }
@@ -286,7 +297,7 @@ function createWindow() {
   return loaded;
 }
 async function runSmoke() {
-  smokeStage = 'configure vault'; process.stdout.write(`${smokeStage}\n`);
+  smokeStage = 'configure vault'; traceSmoke(smokeStage); process.stdout.write(`${smokeStage}\n`);
   const demo = process.env.FISHTOUCHING_SMOKE_FIXTURES
     ? path.resolve(process.env.FISHTOUCHING_SMOKE_FIXTURES)
     : path.resolve(__dirname, '../demo/fixtures');
@@ -294,11 +305,11 @@ async function runSmoke() {
   publicLibrary.add(path.join(demo, '工作汇报.pdf'));
   const body = fs.readFileSync(path.join(demo, '摸鱼.txt'));
   const entry = vault.add({ title: '窗边的橘猫', kind: 'text', data: Buffer.from(JSON.stringify({ paragraphs: paragraphs(body) })), paragraphs: paragraphs(body) });
-  smokeStage = 'render secure TXT'; process.stdout.write(`${smokeStage}\n`);
+  smokeStage = 'render secure TXT'; traceSmoke(smokeStage); process.stdout.write(`${smokeStage}\n`);
   await openEntry(entry.id, true);
   const reading = await window.webContents.executeJavaScript("document.getElementById('text')?.textContent.includes('橘猫')");
   if (!reading) throw new Error('Secure reader did not render.');
-  smokeStage = 'switch to cover PDF'; process.stdout.write(`${smokeStage}\n`);
+  smokeStage = 'switch to cover PDF'; traceSmoke(smokeStage); process.stdout.write(`${smokeStage}\n`);
   await coverSecure();
   if (vault.unlocked || currentTab !== 'normal' || !pdf?.cover) throw new Error('Focus cover did not lock and open the PDF.');
   for (let i = 0; i < 40; i++) {
@@ -307,7 +318,7 @@ async function runSmoke() {
     if (i === 39) throw new Error('PDF viewer did not render.');
     await new Promise(resolve => setTimeout(resolve, 250));
   }
-  smokeStage = 'unlock and resume'; process.stdout.write(`${smokeStage}\n`);
+  smokeStage = 'unlock and resume'; traceSmoke(smokeStage); process.stdout.write(`${smokeStage}\n`);
   await showSecure();
   vault.unlock('test4321');
   await openEntry(resumeId, true);
@@ -318,7 +329,7 @@ async function runSmoke() {
   process.exit(0);
 }
 app.whenReady().then(async () => {
-  smokeStage = 'create window';
+  smokeStage = 'create window'; traceSmoke(smokeStage);
   app.setAppUserModelId('com.youdisn.fishtouching-reader');
   root = smokeMode && process.env.FISHTOUCHING_SMOKE_ROOT
     ? path.resolve(process.env.FISHTOUCHING_SMOKE_ROOT)
@@ -347,8 +358,8 @@ app.whenReady().then(async () => {
     if (secure) await showSecure(); else await showNormal(); });
   ipcMain.on('pdf-secure', async event => { if (event.sender !== window?.webContents) return;
     if (pdf) { pdf.data.fill(0); pdf = null; } await showSecure(); });
-  await createWindow();
+  await createWindow(); traceSmoke('window ready');
   if (smokeMode) await runSmoke();
-}).catch(e => { process.stderr.write(`${e.stack || e}\n`); process.exit(1); });
+}).catch(e => { traceSmoke(`startup error: ${e.stack || e}`); process.stderr.write(`${e.stack || e}\n`); process.exit(1); });
 app.on('will-quit', () => { globalShortcut.unregisterAll(); vault?.lock(); });
 app.on('window-all-closed', () => { if (quitting) app.quit(); });
