@@ -4,7 +4,7 @@
 
 FishTouching Reader 是一款 macOS 和 Windows 本地阅读器：把工作文档放进「我的书库」，把想私下阅读的内容放进锁图标后的加密书库。阅读加密内容时，只要应用失去焦点，当前正文就会从窗口移除，并自动打开你准备的工作 PDF。回来后输入密码，可以接着上次的位置读。
 
-**[下载 macOS 版](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v0.3.2)** · **[下载 Windows x64 测试版](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v0.4.0-beta.1)** · [查看所有版本](https://github.com/YouDiSN/fishtouching-reader/releases)
+**[下载 macOS 版](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v0.3.2)** · **[下载 Windows x64 测试版](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v0.4.0-beta.2)** · [查看所有版本](https://github.com/YouDiSN/fishtouching-reader/releases)
 
 ![虚构素材演示：阅读、切屏、解锁和继续阅读](docs/media/focus-switch-demo.gif)
 
