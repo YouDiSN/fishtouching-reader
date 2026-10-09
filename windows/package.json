@@ -7,7 +7,7 @@
   "scripts": {
     "test": "node --test test/*.test.js",
     "prepare:assets": "node scripts/prepare-assets.js",
-    "package:win": "npm run prepare:assets && electron-packager . \"FishTouching Reader\" --platform=win32 --arch=x64 --out=dist --overwrite --no-asar --icon=assets/app.ico --ignore=^/dist$ --ignore=^/test$",
+    "package:win": "npm run prepare:assets && electron-packager . \"FishTouching Reader\" --platform=win32 --arch=x64 --out=dist --overwrite --no-asar --icon=assets/app.ico --ignore=^/dist$ --ignore=^/test$ && node scripts/copy-package-lock.js && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --prefix \"dist/FishTouching Reader-win32-x64/resources/app\"",
     "start": "npm run prepare:assets && electron ."
   },
   "dependencies": {
