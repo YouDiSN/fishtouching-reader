@@ -6,7 +6,7 @@ macOS 本地阅读器，提供「我的书库」和锁图标入口的加密书�
 
 ## 下载和安装
 
-从 [GitHub Releases](https://github.com/YouDiSN/fishtouching-reader/releases) 下载 `fishtouching-reader-macos-arm64-v0.3.1.zip`，解压后将「FishTouching Reader.app」拖入“应用程序”文件夹，或放在自己选择的位置运行。当前下载包是 Apple Silicon 架构，目标最低版本为 macOS 13；目前只在构建机的 macOS 26.6.2 验证过。构建时使用的 Homebrew `libsodium` 含有针对 macOS 26 构建的对象文件，旧系统兼容性尚未验证。
+从 [GitHub Releases](https://github.com/YouDiSN/fishtouching-reader/releases) 下载 `fishtouching-reader-macos-arm64-v0.3.2.zip`，解压后将「FishTouching Reader.app」拖入“应用程序”文件夹，或放在自己选择的位置运行。当前下载包是 Apple Silicon 架构，目标最低版本为 macOS 13；目前只在构建机的 macOS 26.6.2 验证过。构建时使用的 Homebrew `libsodium` 含有针对 macOS 26 构建的对象文件，旧系统兼容性尚未验证。
 
 下载包为临时签名，尚未进行 Apple 公证。macOS 首次拦截时，可在“系统设置 → 隐私与安全性”中确认打开。只从本仓库的 Release 页面下载，并核对 Release 中列出的 SHA-256。当前应用没有自动更新功能。
 
@@ -55,3 +55,7 @@ open dist/*.app
 ```
 
 迁移验证只使用临时副本，不修改指定的备份或正式书库。
+
+## 开源协议
+
+本项目采用 [MIT License](LICENSE)，版权归 `YouDiSN`。你可以修改、分发并用于开源或闭源项目；分发本软件或其重要部分时，须保留原版权和许可声明。SwiftSoup 和 libsodium 各自的许可及版权见 [第三方声明](THIRD_PARTY_NOTICES.md)。下载包内也附有完整声明。
