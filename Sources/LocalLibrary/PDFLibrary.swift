@@ -74,11 +74,28 @@ final class PDFLibrary {
         try encoder.encode(progress).write(to: progressURL, options: .atomic)
     }
 
-    func list() throws -> [LocalPDF] {
+    private func catalogItems() throws -> [LocalPDF] {
         guard FileManager.default.fileExists(atPath: catalogURL.path) else { return [] }
         return try decoder.decode([LocalPDF].self, from: Data(contentsOf: catalogURL))
+    }
+
+    func list() throws -> [LocalPDF] {
+        try catalogItems()
             .filter { FileManager.default.fileExists(atPath: fileURL(for: $0.id).path) }
             .sorted { $0.importedAt > $1.importedAt }
+    }
+
+    func removeFromLibrary(_ id: String) throws {
+        var items = try catalogItems()
+        guard let index = items.firstIndex(where: { $0.id == id }) else { throw VaultFailure.badData }
+        var progress = try progressMap()
+        items.remove(at: index)
+        try encoder.encode(items).write(to: catalogURL, options: .atomic)
+        progress.removeValue(forKey: id)
+        try encoder.encode(progress).write(to: progressURL, options: .atomic)
+        let file = fileURL(for: id)
+        if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
+        pageCountCache.removeValue(forKey: id)
     }
 
     @discardableResult func importFile(_ source: URL) throws -> LocalPDF {
@@ -90,7 +107,7 @@ final class PDFLibrary {
         let pdf = LocalPDF(id: UUID().uuidString, title: source.deletingPathExtension().lastPathComponent,
                            importedAt: Date(), pageCount: PDFDocument(url: source)?.pageCount)
         try FileManager.default.copyItem(at: source, to: fileURL(for: pdf.id))
-        var items = try list()
+        var items = try catalogItems()
         items.append(pdf)
         try encoder.encode(items).write(to: catalogURL, options: .atomic)
         return pdf

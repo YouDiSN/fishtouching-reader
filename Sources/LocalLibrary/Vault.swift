@@ -218,6 +218,16 @@ final class Vault {
                         kind: entry.kind, pageCount: entry.pageCount)
         }.sorted { ($0.progress?.updatedAt ?? .distantPast) > ($1.progress?.updatedAt ?? .distantPast) }
     }
+    func removeFromLibrary(_ id: String) throws {
+        var value = try catalog()
+        guard let index = value.entries.firstIndex(where: { $0.id == id }) else { throw VaultFailure.badData }
+        value.entries.remove(at: index)
+        try writeCatalog(value)
+        let file = try dataURL(id)
+        let progress = try progressURL(id)
+        if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
+        if FileManager.default.fileExists(atPath: progress.path) { try FileManager.default.removeItem(at: progress) }
+    }
     func saveProgress(_ progress: ReadingProgress, for id: String) throws {
         guard let key else { throw VaultFailure.locked }
         try seal(encoder.encode(progress), with: key).write(to: progressURL(id), options: .atomic)

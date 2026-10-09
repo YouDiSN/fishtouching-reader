@@ -26,8 +26,22 @@ final class TextLibrary {
     private var catalogURL: URL { root.appendingPathComponent("catalog.json") }
     private var progressURL: URL { root.appendingPathComponent("progress.json") }
     func list() throws -> [PublicText] {
+        try catalogItems()
+    }
+    private func catalogItems() throws -> [PublicText] {
         guard FileManager.default.fileExists(atPath: catalogURL.path) else { return [] }
         return try decoder.decode([PublicText].self, from: Data(contentsOf: catalogURL))
+    }
+    func removeFromLibrary(_ id: String) throws {
+        var items = try catalogItems()
+        guard let index = items.firstIndex(where: { $0.id == id }) else { throw VaultFailure.badData }
+        var progress = try progressMap()
+        items.remove(at: index)
+        try encoder.encode(items).write(to: catalogURL, options: .atomic)
+        progress.removeValue(forKey: id)
+        try encoder.encode(progress).write(to: progressURL, options: .atomic)
+        let file = try url(id)
+        if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
     }
     private func url(_ id: String) throws -> URL {
         guard UUID(uuidString: id) != nil else { throw VaultFailure.badData }
@@ -42,7 +56,7 @@ final class TextLibrary {
                               importedAt: Date(), paragraphCount: paragraphs.count, wordCount: count)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         try data.write(to: url(item.id), options: .atomic)
-        var items = try list(); items.append(item)
+        var items = try catalogItems(); items.append(item)
         try encoder.encode(items).write(to: catalogURL, options: .atomic)
     }
     func load(_ id: String) throws -> [String] {

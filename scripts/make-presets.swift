@@ -73,6 +73,11 @@ for preset in presets {
     NSGraphicsContext.current = context
     context.imageInterpolation = .high
     context.shouldAntialias = true
+    let inset = NSAffineTransform()
+    inset.translateX(by: 512, yBy: 512)
+    inset.scale(by: 0.88)
+    inset.translateX(by: -512, yBy: -512)
+    inset.concat()
     let background = NSBezierPath(roundedRect: NSRect(x: 44, y: 44, width: 936, height: 936),
                                   xRadius: 205, yRadius: 205)
     NSGradient(starting: color(preset.start), ending: color(preset.end))!.draw(in: background, angle: -55)

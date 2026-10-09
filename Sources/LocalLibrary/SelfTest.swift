@@ -71,7 +71,26 @@ enum SelfTest {
         try Data("一行\n二行".utf8).write(to: sourceTXT)
         let publicText = TextLibrary(root: root.appendingPathComponent("public-texts"))
         try publicText.importFile(sourceTXT)
-        try check(try publicText.load(publicText.list()[0].id).count == 2, "public TXT")
+        let textID = try publicText.list()[0].id
+        try check(try publicText.load(textID).count == 2, "public TXT")
+        try publicText.saveProgress(ReadingProgress(paragraph: 1, fraction: 0, updatedAt: Date()), for: textID)
+        try publicPDF.removeFromLibrary(publicItem.id)
+        try check(try publicPDF.list().isEmpty, "removed PDF hidden")
+        try check(!FileManager.default.fileExists(atPath: publicPDF.fileURL(for: publicItem.id).path), "PDF copy deleted")
+        try check(try publicPDF.loadProgress(for: publicItem.id) == nil, "PDF progress deleted")
+        try check(FileManager.default.fileExists(atPath: sourcePDF.path), "original PDF retained")
+        try publicText.removeFromLibrary(textID)
+        try check(try publicText.list().isEmpty, "removed TXT hidden")
+        try check(!FileManager.default.fileExists(atPath: root.appendingPathComponent("public-texts/\(textID).txt").path), "TXT copy deleted")
+        try check(try publicText.progress(textID) == nil, "TXT progress deleted")
+        try check(FileManager.default.fileExists(atPath: sourceTXT.path), "original TXT retained")
+        try vault.removeFromLibrary(id)
+        try vault.removeFromLibrary(pdfID)
+        try check(try vault.list().isEmpty, "removed secure books hidden")
+        try check(!FileManager.default.fileExists(atPath: root.appendingPathComponent("secure-data/\(id).bin").path), "secure text copy deleted")
+        try check(!FileManager.default.fileExists(atPath: root.appendingPathComponent("secure-data/\(id).progress").path), "secure text progress deleted")
+        try check(!FileManager.default.fileExists(atPath: root.appendingPathComponent("secure-data/\(pdfID).bin").path), "secure PDF copy deleted")
+        try check(!FileManager.default.fileExists(atPath: root.appendingPathComponent("secure-data/\(pdfID).progress").path), "secure PDF progress deleted")
         let shortPasswordVault = Vault(root: root.appendingPathComponent("four-character-password"))
         try shortPasswordVault.configure(password: "1234")
         shortPasswordVault.lock()
@@ -81,7 +100,7 @@ enum SelfTest {
         try shortPasswordVault.unlock(password: "5678")
         try check((try? shortPasswordVault.changePassword(old: "5678", new: "123")) == nil,
                   "password shorter than four rejected")
-        print("Self-test passed: extraction, password, encryption, TXT/PDF, progress")
+        print("Self-test passed: extraction, password, encryption, TXT/PDF, progress, removal")
         if live { try runLive() }
     }
     private static func check(_ condition: @autoclosure () throws -> Bool, _ name: String) throws {

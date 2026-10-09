@@ -47,8 +47,18 @@
   .recent summary { cursor: pointer; font-size: 17px; font-weight: 600; }
   .recent summary .muted { margin-left: 8px; font-weight: 400; }
   .recent .books { margin-top: 16px; }
-  .book-item { padding: 18px 20px; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+  .book-item { position: relative; padding: 18px 52px 18px 20px; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
   .book-item > div:first-child { min-width: 0; flex: 1; }
+  .book-item .remove-book { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; padding: 0; border-radius: 7px; background: transparent; color: #b9cbbd; font-size: 22px; line-height: 1; opacity: 0; pointer-events: none; }
+  .book-item:hover .remove-book, .book-item:focus-within .remove-book { opacity: 1; pointer-events: auto; }
+  .book-item .remove-book:hover, .book-item .remove-book:focus-visible { background: #713e3e; color: #fff; }
+  @media (hover: none) { .book-item .remove-book { opacity: 1; pointer-events: auto; } }
+  .confirm-dialog { width: min(420px, calc(100vw - 36px)); padding: 25px; border: 1px solid #496153; border-radius: 15px; background: #1a2520; color: #e8eee9; box-shadow: 0 24px 70px #0009; }
+  .confirm-dialog::backdrop { background: #0009; }
+  .confirm-dialog h2 { margin: 0 0 12px; }
+  .confirm-dialog p { line-height: 1.65; overflow-wrap: anywhere; }
+  .confirm-dialog .row { justify-content: flex-end; margin-top: 22px; }
+  .confirm-dialog .danger { background: #9a4b4b; }
   .book-title { overflow-wrap: anywhere; font-size: 14px; line-height: 1.55; }
   .book-item .muted { margin-top: 5px; }
   .progress-track { height: 5px; margin-top: 8px; border-radius: 5px; background: #31443a; overflow: hidden; }
@@ -67,7 +77,7 @@
   @media(max-width:700px) { .shell { padding: 24px 18px; } .reader { padding: 18px 24px 80px; } }
 </style>
 </head>
-<body><main id="app"></main>
+<body><main id="app"></main><dialog id="removeDialog" class="confirm-dialog" aria-labelledby="removeTitle"><h2 id="removeTitle">确认移除？</h2><p id="removeBookTitle"></p><p class="muted">将从书库移除，并删除应用保存的副本和阅读进度。本地导入的原始文件不会被删除。</p><div class="row"><button type="button" class="secondary" id="cancelRemove">取消</button><button type="button" class="danger" id="confirmRemove">确认移除</button></div></dialog>
 <script>
 const app = document.getElementById('app');
 let state = {type:'hidden'};
@@ -82,6 +92,8 @@ let importURL = '';
 let indexURL = 'https://example.invalid/removed';
 let progressTimer;
 let setupIconID = 'fish';
+let pendingRemoval = null;
+let searchQuery = '';
 const chunkSize = 350;
 function post(action, data={}) { window.webkit?.messageHandlers?.app?.postMessage({action,...data}); }
 function h(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -93,7 +105,17 @@ function progressHTML(position,total,detail) {
 function readDate(seconds) { return new Date(seconds*1000).toLocaleString('zh-CN',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
 function recentOpen(key) { return localStorage.getItem(key)==='false'?'':' open'; }
 function bindRecent(id,key) { document.getElementById(id).ontoggle=e=>localStorage.setItem(key,String(e.target.open)); }
+function closeRemoveDialog() { pendingRemoval=null; document.getElementById('removeDialog').close(); document.getElementById('removeBookTitle').textContent=''; }
+function confirmRemoval(id,kind,name) {
+  pendingRemoval={id,kind};
+  document.getElementById('removeBookTitle').textContent=`《${name}》`;
+  document.getElementById('removeDialog').showModal();
+}
+document.getElementById('cancelRemove').onclick=closeRemoveDialog;
+document.getElementById('confirmRemove').onclick=()=>{const target=pendingRemoval;closeRemoveDialog();if(target)post('removeBook',target);};
+document.getElementById('removeDialog').addEventListener('cancel',()=>{pendingRemoval=null;document.getElementById('removeBookTitle').textContent='';});
 function receive(next) {
+  if (document.getElementById('removeDialog').open) closeRemoveDialog();
   if (next.type==='error') { state = {...state, type:next.context, error:next.message}; }
   else if (next.type==='busy') { state = {...state, busy:next.message, error:null}; }
   else if (next.type==='batch') { state = {...state, batchStatus:next.message, batchRunning:true, error:null}; }
@@ -135,7 +157,7 @@ function renderNormal() {
   renderPDFItems(pdfs,document.getElementById('pdfs'),false);
 }
 function renderPDFItems(pdfs,list,isRecent) {
-  if (!pdfs.length) { list.innerHTML=`<div class="muted">${isRecent?'还没有阅读过的 PDF':'还没有 PDF'}</div>`; return; }
+  if (!pdfs.length) { list.innerHTML=`<div class="muted">${isRecent?'还没有阅读过的书籍':'还没有书籍'}</div>`; return; }
   list.innerHTML='';
   for (const pdf of pdfs) {
     const item=document.createElement('div'); item.className='card book-item';
@@ -145,7 +167,9 @@ function renderPDFItems(pdfs,list,isRecent) {
     const detail=pageCount?`${pdf.kind==='text'?'第':'第'} ${pageIndex+1} / ${pageCount} ${pdf.kind==='text'?'段':'页'}`:'进度未知';
     item.innerHTML=`<div><div class="book-title">${h(pdf.title)}</div>${progressHTML(pageIndex+fraction,pageCount,detail)}${isRecent?`<div class="muted">上次阅读 ${h(readDate(pdf.updatedAt))}</div>`:''}</div>`;
     const button=document.createElement('button'); button.textContent=isRecent?'继续阅读':'打开'; button.onclick=()=>post('openPDF',{id:pdf.id});
-    item.append(button); list.append(item);
+    const remove=document.createElement('button'); remove.className='remove-book'; remove.type='button'; remove.textContent='×'; remove.title='从书库移除'; remove.setAttribute('aria-label',`移除 ${pdf.title}`);
+    remove.onclick=()=>confirmRemoval(pdf.id,pdf.kind,pdf.title);
+    item.append(button,remove); list.append(item);
   }
 }
 function renderLocked() {
@@ -203,7 +227,8 @@ function renderLibrary() {
   document.getElementById('bookSort').onchange=e=>{bookSort=e.target.value;localStorage.setItem('bookSort',bookSort);renderBooks();};
   document.getElementById('import').onsubmit=e=>{e.preventDefault();importURL=document.getElementById('url').value;post('import',{url:importURL});};
   document.getElementById('importIndex').onsubmit=e=>{e.preventDefault();indexURL=document.getElementById('indexUrl').value;post('importIndex',{url:indexURL});};
-  document.getElementById('search').oninput=renderBooks;
+  document.getElementById('search').value=searchQuery;
+  document.getElementById('search').oninput=e=>{searchQuery=e.target.value;renderBooks();};
   const recent=(state.books||[]).filter(b=>b.updatedAt>0).sort((a,b)=>b.updatedAt-a.updatedAt);
   document.getElementById('recentBookCount').textContent=`${recent.length} 本`;
   renderBookItems(recent,document.getElementById('recentBooks'),true);
@@ -228,7 +253,9 @@ function renderBookItems(books,list,isRecent) {
     const item=document.createElement('div'); item.className='card book-item';
     const label=document.createElement('div'); label.innerHTML=`<div class="book-title">${h(title(b.title))}</div><div class="muted">${h(b.host)} · ${b.kind==='pdf'?`${b.pageCount} 页`:`正文 ${Number(b.wordCount||0).toLocaleString('zh-CN')} 字`}</div>${progressHTML((b.paragraph||0)+(b.fraction||0),b.kind==='pdf'?b.pageCount:b.count,b.kind==='pdf'?`第 ${(b.paragraph||0)+1} / ${b.pageCount} 页`:`${b.count} 段`)}${isRecent?`<div class="muted">上次阅读 ${h(readDate(b.updatedAt))}</div>`:''}`;
     const button=document.createElement('button'); button.textContent='继续阅读'; button.disabled=!!state.batchRunning; button.onclick=()=>post('read',{id:b.id});
-    item.append(label,button); list.append(item);
+    const remove=document.createElement('button'); remove.className='remove-book'; remove.type='button'; remove.textContent='×'; remove.title='从书库移除'; remove.setAttribute('aria-label',`移除 ${title(b.title)}`); remove.disabled=!!state.batchRunning;
+    remove.onclick=()=>confirmRemoval(b.id,b.kind,title(b.title));
+    item.append(label,button,remove); list.append(item);
   }
 }
 function renderPreview() {

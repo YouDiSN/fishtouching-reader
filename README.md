@@ -6,7 +6,7 @@ macOS 本地阅读器，提供「我的书库」和锁图标入口的加密书�
 
 ## 下载和安装
 
-从 [GitHub Releases](https://github.com/YouDiSN/fishtouching-reader/releases) 下载 `fishtouching-reader-macos-arm64-v0.3.0.zip`，解压后将「FishTouching Reader.app」拖入“应用程序”文件夹，或放在自己选择的位置运行。当前下载包是 Apple Silicon 架构，目标最低版本为 macOS 13；目前只在构建机的 macOS 26.6.2 验证过。构建时使用的 Homebrew `libsodium` 含有针对 macOS 26 构建的对象文件，旧系统兼容性尚未验证。
+从 [GitHub Releases](https://github.com/YouDiSN/fishtouching-reader/releases) 下载 `fishtouching-reader-macos-arm64-v0.3.1.zip`，解压后将「FishTouching Reader.app」拖入“应用程序”文件夹，或放在自己选择的位置运行。当前下载包是 Apple Silicon 架构，目标最低版本为 macOS 13；目前只在构建机的 macOS 26.6.2 验证过。构建时使用的 Homebrew `libsodium` 含有针对 macOS 26 构建的对象文件，旧系统兼容性尚未验证。
 
 下载包为临时签名，尚未进行 Apple 公证。macOS 首次拦截时，可在“系统设置 → 隐私与安全性”中确认打开。只从本仓库的 Release 页面下载，并核对 Release 中列出的 SHA-256。当前应用没有自动更新功能。
 
@@ -37,6 +37,7 @@ open dist/*.app
 - 加密内容失焦时会清除当前内容并显示「我的书库」第一本 PDF，解锁后回到先前的阅读位置。「我的书库」失焦不锁定。
 - `Control + Option + H` 显示或隐藏窗口，`Command + ,` 打开设置。菜单栏书本图标提供单行“显示／隐藏”切换和设置，快捷键显示在菜单项右侧。
 - 书库提供最近阅读列表、阅读进度、搜索和按字数排序。新安装默认名称为「FishTouching Reader」，默认使用内置摸鱼图标；设置窗口可从 10 个内置图标中选择，也可使用自己的图片，还能修改名称和密码。名称留空保存会恢复默认名称。自定义图标推荐至少 1024×1024 像素的正方形 PNG 原图；删除自定义图标只移除应用保存的副本，不删除原始图片。
+- 在任一书库的书籍列表悬停时，右上角会出现移除按钮。确认后，应用删除该书的目录记录、应用内副本及阅读进度；从 Finder 导入的原始文件不会被删除。
 - 保存应用名称后可选择“立即重启”或“下次重启”。应用会在退出后重命名自身的 `.app` 文件夹，无需重新编译；图标选择后立即更新。
 
 ## 存储和备份

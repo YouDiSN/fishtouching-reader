@@ -160,6 +160,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         case "read":
             guard let id = data["id"] as? String else { return }
             if currentTab == "secure" { showBook(id) } else { showNormalText(id) }
+        case "removeBook":
+            guard let id = data["id"] as? String else { return }
+            removeBook(id, kind: data["kind"] as? String ?? "")
         case "progress":
             guard let id = currentBookID,
                   let paragraph = data["paragraph"] as? Int,
@@ -231,6 +234,24 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
                   "batchFailures": batchFailures,
                   "hotKeyAvailable": hotKeyRegistrationStatus == noErr])
         } catch { sendError(error.localizedDescription, context: "library") }
+    }
+
+    private func removeBook(_ id: String, kind: String) {
+        do {
+            if currentTab == "secure" {
+                guard vault.isUnlocked, !batchRunning else { return }
+                try vault.removeFromLibrary(id)
+                if secureResumeID == id { secureResumeID = nil }
+                if currentBookID == id { currentBookID = nil }
+                sendLibrary()
+            } else {
+                if kind == "pdf" { try pdfLibrary.removeFromLibrary(id) }
+                else if kind == "text" { try textLibrary.removeFromLibrary(id) }
+                else { return }
+                if currentBookID == id { currentBookID = nil }
+                showNormalLibrary()
+            }
+        } catch { sendError(error.localizedDescription, context: currentTab == "secure" ? "library" : "normal") }
     }
 
     private func showNormalLibrary() {
