@@ -50,10 +50,10 @@ jobs:
       - name: Create ZIP
         shell: pwsh
         run: |
-          Compress-Archive -Path 'windows/dist/FishTouching Reader-win32-x64/*' -DestinationPath 'FishTouching-Reader-Windows-x64-v0.4.0-beta.3.zip' -CompressionLevel Optimal
-          Get-FileHash 'FishTouching-Reader-Windows-x64-v0.4.0-beta.3.zip' -Algorithm SHA256 | Format-List
+          Compress-Archive -Path 'windows/dist/FishTouching Reader-win32-x64/*' -DestinationPath 'FishTouching-Reader-Windows-x64-v1.0.0.zip' -CompressionLevel Optimal
+          Get-FileHash 'FishTouching-Reader-Windows-x64-v1.0.0.zip' -Algorithm SHA256 | Format-List
       - uses: actions/upload-artifact@v4
         with:
-          name: FishTouching-Reader-Windows-x64-v0.4.0-beta.3
-          path: FishTouching-Reader-Windows-x64-v0.4.0-beta.3.zip
+          name: FishTouching-Reader-Windows-x64-v1.0.0
+          path: FishTouching-Reader-Windows-x64-v1.0.0.zip
           if-no-files-found: error

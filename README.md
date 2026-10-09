@@ -4,7 +4,7 @@
 
 FishTouching Reader 是一款 macOS 和 Windows 本地阅读器：把工作文档放进「我的书库」，把想私下阅读的内容放进锁图标后的加密书库。阅读加密内容时，只要应用失去焦点，当前正文就会从窗口移除，并自动打开你准备的工作 PDF。回来后输入密码，可以接着上次的位置读。
 
-**[下载 macOS 版](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v0.3.3)** · **[下载 Windows x64 测试版](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v0.4.0-beta.3)** · [查看所有版本](https://github.com/YouDiSN/fishtouching-reader/releases)
+**[下载 macOS 版](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v1.0.0)** · **[下载 Windows x64 版](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v1.0.0)** · [查看所有版本](https://github.com/YouDiSN/fishtouching-reader/releases)
 
 ![虚构素材演示：阅读、切屏、解锁和继续阅读](docs/media/focus-switch-demo.gif)
 
@@ -40,7 +40,7 @@ FishTouching Reader 是一款 macOS 和 Windows 本地阅读器：把工作文�
 
 ## 下载和安装
 
-**macOS：**从 [v0.3.3 Release](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v0.3.3) 下载压缩包，解压后将 `FishTouching Reader.app` 拖入“应用程序”文件夹。当前包是 **Apple Silicon** 架构，目标最低版本为 **macOS 13**；目前只在构建机的 macOS 26.6.2 验证过。构建所用 Homebrew `libsodium` 含有针对 macOS 26 构建的对象文件，旧系统兼容性尚未验证。
+**macOS：**从 [v1.0.0 Release](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v1.0.0) 下载 macOS 压缩包，解压后将 `FishTouching Reader.app` 拖入“应用程序”文件夹。当前包是 **Apple Silicon** 架构，目标最低版本为 **macOS 13**；目前只在构建机的 macOS 26.6.2 验证过。构建所用 Homebrew `libsodium` 含有针对 macOS 26 构建的对象文件，旧系统兼容性尚未验证。
 
 macOS 包为临时签名，尚未经过 Apple 公证。**没有开发者证书也可以使用**，但下载后首次打开需要手动放行：
 
@@ -50,7 +50,7 @@ macOS 包为临时签名，尚未经过 Apple 公证。**没有开发者证书�
 
 详见 [Apple 官方说明](https://support.apple.com/en-us/102445)及项目的[签名与公证进度](docs/macos-signing.md)。
 
-**Windows：**从 [v0.4.0-beta.3 Release](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v0.4.0-beta.3) 下载 x64 便携 ZIP，完整解压后运行 `FishTouching Reader.exe`。当前 Windows 包未进行代码签名，SmartScreen 可能提示未知发布者；该版本已在 GitHub Windows runner 上通过阅读、失焦切到 PDF、锁定和恢复的自动测试，仍属于测试版。两个平台目前各有独立书库，不自动同步。详见 [Windows 说明](windows/README.md)。当前均无自动更新功能。
+**Windows：**从 [v1.0.0 Release](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v1.0.0) 下载 Windows x64 便携 ZIP，完整解压后运行 `FishTouching Reader.exe`。当前 Windows 包未进行代码签名，SmartScreen 可能提示未知发布者；该版本已在 GitHub Windows runner 上通过阅读、失焦切到 PDF、锁定和恢复的自动测试，尚未在用户 Windows 电脑上人工验收。两个平台目前各有独立书库，不自动同步。详见 [Windows 说明](windows/README.md)。当前均无自动更新功能。
 
 ## 构建
 

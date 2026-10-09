@@ -6,6 +6,7 @@
 - Windows 版位于 `windows/`，复用由 `windows/scripts/prepare-assets.js` 转换的阅读界面。其书库格式和路径与 macOS 版分开；不要声称两个平台自动同步或直接兼容。`npm test --prefix windows` 验证数据层；Windows Actions 还需通过 Electron smoke 和打包后才能发布 ZIP。
 - 导入只支持本地 TXT、PDF。不要重新加入网址导入，也不要在源码、演示、测试或文档中写死个人阅读站点、文章页或目录页地址；公开演示只使用 `demo/fixtures/` 的虚构素材。
 - 默认应用名称是「FishTouching Reader」，默认图标是 `fish`。用户可在应用内修改名称和图标；本机已改名的 `.app` 目录不代表发行包的默认名称。
+- macOS 和 Windows 共用版本号与一个 GitHub Release，当前版本为 `v1.0.0`；每次发布要同时放入各平台下载包，旧版本只按用户要求保留。
 - 书库数据位于 `~/Library/Application Support/LocalLibrary/`。不要将该目录、个人阅读清单、源书籍、密码、密钥、备份、日志或用户自定义图标加入 Git、测试样本或发行包。
 - README 截图、GIF 和测试演示只使用 `demo/fixtures/` 中虚构素材；`demo/render-media.py` 不得读取真实书库。生成媒体后人工检查画面再公开。
 - 加密书库内容及目录必须保持加密存储。修改导入、加密、解锁、失焦切换或进度逻辑时，先检查对现有书库和阅读进度的兼容性；测试优先使用临时目录，不对真实书库做破坏性测试。
