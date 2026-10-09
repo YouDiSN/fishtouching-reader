@@ -28,6 +28,8 @@ jobs:
         run: npm test --prefix windows
       - name: Prepare UI assets
         run: npm run prepare:assets --prefix windows
+      - name: Download Electron runtime
+        run: node windows/node_modules/electron/install.js
       - name: Exercise reader and focus cover
         shell: pwsh
         timeout-minutes: 3
@@ -37,7 +39,8 @@ jobs:
           $ok = Join-Path $env:FISHTOUCHING_SMOKE_ROOT 'smoke-ok.txt'
           $out = Join-Path $env:RUNNER_TEMP 'electron-smoke.out'
           $err = Join-Path $env:RUNNER_TEMP 'electron-smoke.err'
-          $process = Start-Process -FilePath 'windows/node_modules/electron/dist/electron.exe' -ArgumentList 'windows', '--smoke' -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+          $electron = (Resolve-Path 'windows/node_modules/electron/dist/electron.exe').Path
+          $process = Start-Process -FilePath $electron -ArgumentList 'windows', '--smoke' -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
           try {
             for ($i = 0; $i -lt 90 -and !(Test-Path $ok) -and !$process.HasExited; $i++) { Start-Sleep -Seconds 1 }
             Get-Content $out -ErrorAction SilentlyContinue
