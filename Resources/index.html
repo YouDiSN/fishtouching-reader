@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>摸鱼阅读</title>
+<title>FishTouching Reader</title>
 <style>
   :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
   * { box-sizing: border-box; }
@@ -158,7 +158,7 @@ function renderLocked() {
 function renderSetup() {
   app.innerHTML=`<div class="shell"><div class="card lock"><h1>首次设置</h1><p class="muted">设置应用名称和加密书库密码。旧书会在保存时迁移。</p>
     ${state.error?`<div class="message">${h(state.error)}</div>`:''}
-    <form class="stack" id="setup"><label>应用名称<input id="appName" value="摸鱼阅读" maxlength="40"></label>
+    <form class="stack" id="setup"><label>应用名称<input id="appName" value="FishTouching Reader" maxlength="40"></label>
       <input id="newPassword" type="password" autocomplete="new-password" placeholder="设置密码（至少 4 个字符）" required>
       <input id="confirmPassword" type="password" autocomplete="new-password" placeholder="再次输入密码" required>
       <div class="muted">选择 Dock 图标</div><div class="setup-icons" id="setupIcons"></div>

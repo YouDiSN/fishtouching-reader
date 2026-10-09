@@ -15,14 +15,14 @@ version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app_d
 arch=$(/usr/bin/uname -m)
 stage=$(/usr/bin/mktemp -d)
 trap '/bin/rm -rf "$stage"' EXIT
-release_app="$stage/摸鱼阅读.app"
+release_app="$stage/FishTouching Reader.app"
 /usr/bin/ditto "$app_dir" "$release_app"
-/usr/libexec/PlistBuddy -c 'Set :CFBundleName 摸鱼阅读' "$release_app/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName 摸鱼阅读' "$release_app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleName FishTouching Reader' "$release_app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName FishTouching Reader' "$release_app/Contents/Info.plist"
 /usr/bin/codesign --force --sign - "$release_app"
 /usr/bin/codesign --verify --strict "$release_app"
 /bin/mkdir -p release
-archive="$PWD/release/摸鱼阅读-macos-$arch-v$version.zip"
+archive="$PWD/release/fishtouching-reader-macos-$arch-v$version.zip"
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$release_app" "$archive"
 /usr/bin/shasum -a 256 "$archive"
 print "Package: $archive"

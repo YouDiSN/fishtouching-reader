@@ -13,7 +13,7 @@ private final class PointingHandButton: NSButton {
 }
 
 private enum AppDefaults {
-    static let displayName = "摸鱼阅读"
+    static let displayName = "FishTouching Reader"
     static let iconID = "fish"
 }
 

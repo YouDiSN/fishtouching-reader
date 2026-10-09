@@ -8,7 +8,7 @@ for candidate in "$PWD"/dist/*.app(N); do
   bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$candidate/Contents/Info.plist" 2>/dev/null || true)
   if [[ "$bundle_id" == "local.library.reader" ]]; then existing_app="$candidate"; break; fi
 done
-display_name="摸鱼阅读"
+display_name="FishTouching Reader"
 if [[ -n "$existing_app" ]]; then
   display_name="${existing_app:t:r}"
 fi
@@ -42,8 +42,8 @@ cat > "$app_dir/Contents/Info.plist" <<'PLIST'
   <key>CFBundleExecutable</key><string>LocalLibrary</string>
   <key>CFBundleIdentifier</key><string>local.library.reader</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-  <key>CFBundleName</key><string>摸鱼阅读</string>
-  <key>CFBundleDisplayName</key><string>摸鱼阅读</string>
+  <key>CFBundleName</key><string>FishTouching Reader</string>
+  <key>CFBundleDisplayName</key><string>FishTouching Reader</string>
   <key>CFBundleIconFile</key><string>AppIcon.icns</string>
   <key>CFBundleIconName</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
