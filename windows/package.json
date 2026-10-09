@@ -1,0 +1,21 @@
+{
+  "name": "fishtouching-reader-windows",
+  "version": "0.4.0",
+  "private": true,
+  "description": "FishTouching Reader for Windows",
+  "main": "main.js",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "prepare:assets": "node scripts/prepare-assets.js",
+    "package:win": "npm run prepare:assets && electron-packager . \"FishTouching Reader\" --platform=win32 --arch=x64 --out=dist --overwrite --asar --icon=assets/app.ico --ignore=^/dist$ --ignore=^/test$",
+    "start": "npm run prepare:assets && electron ."
+  },
+  "dependencies": {
+    "cheerio": "1.2.0",
+    "pdfjs-dist": "6.4.299"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "electron": "44.7.0"
+  }
+}

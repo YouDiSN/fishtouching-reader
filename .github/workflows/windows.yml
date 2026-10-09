@@ -1,0 +1,49 @@
+name: Windows build
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'windows/**'
+      - 'Resources/index.html'
+      - 'Resources/settings.html'
+      - 'demo/fixtures/**'
+      - '.github/workflows/windows.yml'
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: windows/package-lock.json
+      - name: Install dependencies
+        run: npm ci --prefix windows --no-audit --no-fund
+      - name: Test storage and importer
+        run: npm test --prefix windows
+      - name: Prepare UI assets
+        run: npm run prepare:assets --prefix windows
+      - name: Exercise reader and focus cover
+        shell: pwsh
+        env:
+          FISHTOUCHING_SMOKE_ROOT: ${{ runner.temp }}\fishtouching-reader-smoke
+        run: |
+          & windows/node_modules/.bin/electron.cmd windows --smoke
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Package portable Windows app
+        run: npm run package:win --prefix windows
+      - name: Create ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path 'windows/dist/FishTouching Reader-win32-x64/*' -DestinationPath 'FishTouching-Reader-Windows-x64-v0.4.0-beta.1.zip' -CompressionLevel Optimal
+          Get-FileHash 'FishTouching-Reader-Windows-x64-v0.4.0-beta.1.zip' -Algorithm SHA256 | Format-List
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FishTouching-Reader-Windows-x64-v0.4.0-beta.1
+          path: FishTouching-Reader-Windows-x64-v0.4.0-beta.1.zip
+          if-no-files-found: error

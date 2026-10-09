@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>阅读 PDF</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#101716;color:#e8f0e9;font:15px -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+header{height:54px;background:#17231f;border-bottom:1px solid #34443c;display:flex;align-items:center;gap:14px;padding:0 18px}
+button{border:0;border-radius:8px;background:#294136;color:#e8f0e9;padding:10px 14px;cursor:pointer;font:inherit}button:hover{background:#3b6550}button:disabled{opacity:.5;cursor:default}
+#title{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}#page{min-width:75px;text-align:center;color:#b4c7ba}
+#viewport{height:calc(100vh - 54px);overflow:auto;text-align:center;padding:24px;background:#161e1b}
+canvas{display:block;margin:0 auto 20px;box-shadow:0 10px 30px #0008;background:white;max-width:none}
+#error{color:#ffb9b9;padding:26px}
+</style></head><body>
+<header><button id="back" title="返回书库">←</button><span id="title"></span><button id="prev" title="上一页">‹</button><span id="page"></span><button id="next" title="下一页">›</button><button id="secure" title="加密书库">🔒</button></header>
+<div id="viewport"><canvas id="canvas"></canvas><div id="error"></div></div>
+<script type="module">
+import * as pdfjsLib from '../node_modules/pdfjs-dist/build/pdf.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('../node_modules/pdfjs-dist/build/pdf.worker.mjs', import.meta.url).href;
+const native = window.readerNative;
+const viewport = document.getElementById('viewport');
+const canvas = document.getElementById('canvas');
+const pageLabel = document.getElementById('page');
+let documentModel = null, pageIndex = 0, activeRender = null, secure = false, cleared = false, saving;
+function save() {
+  if (!documentModel || cleared) return;
+  const max = Math.max(1, viewport.scrollHeight - viewport.clientHeight);
+  native.pdfProgress({ position: pageIndex, fraction: Math.max(0, Math.min(1, viewport.scrollTop / max)) });
+}
+async function draw(fraction = 0) {
+  if (!documentModel || cleared) return;
+  if (activeRender) { activeRender.cancel(); try { await activeRender.promise; } catch {} }
+  const page = await documentModel.getPage(pageIndex + 1);
+  const fit = Math.max(0.4, Math.min(2, (viewport.clientWidth - 48) / page.getViewport({ scale: 1 }).width));
+  const scale = fit * Math.min(window.devicePixelRatio || 1, 2);
+  const bounds = page.getViewport({ scale });
+  canvas.width = Math.ceil(bounds.width); canvas.height = Math.ceil(bounds.height);
+  canvas.style.width = `${Math.ceil(bounds.width / (window.devicePixelRatio || 1))}px`;
+  canvas.style.height = `${Math.ceil(bounds.height / (window.devicePixelRatio || 1))}px`;
+  activeRender = page.render({ canvasContext: canvas.getContext('2d'), viewport: bounds });
+  await activeRender.promise;
+  pageLabel.textContent = `${pageIndex + 1} / ${documentModel.numPages}`;
+  document.getElementById('prev').disabled = pageIndex === 0;
+  document.getElementById('next').disabled = pageIndex >= documentModel.numPages - 1;
+  requestAnimationFrame(() => { viewport.scrollTop = fraction * Math.max(0, viewport.scrollHeight - viewport.clientHeight); });
+}
+native.onPdf(async data => {
+  try {
+    secure = data.secure; cleared = false;
+    document.getElementById('title').textContent = data.title;
+    const binary = Uint8Array.from(atob(data.data), c => c.charCodeAt(0));
+    documentModel = await pdfjsLib.getDocument({ data: binary }).promise;
+    native.pdfCount(documentModel.numPages);
+    pageIndex = Math.max(0, Math.min(documentModel.numPages - 1, data.position || 0));
+    await draw(data.fraction || 0);
+  } catch (error) { document.getElementById('error').textContent = `无法打开 PDF：${error.message}`; }
+});
+native.onClear(() => {
+  cleared = true; if (activeRender) activeRender.cancel();
+  canvas.width = 0; canvas.height = 0; document.getElementById('title').textContent = '';
+  document.getElementById('error').textContent = ''; documentModel?.destroy(); documentModel = null;
+});
+viewport.addEventListener('scroll', () => { clearTimeout(saving); saving = setTimeout(save, 350); });
+document.getElementById('prev').onclick = async () => { if (pageIndex > 0) { save(); pageIndex--; await draw(); save(); } };
+document.getElementById('next').onclick = async () => { if (documentModel && pageIndex < documentModel.numPages - 1) { save(); pageIndex++; await draw(); save(); } };
+document.getElementById('back').onclick = () => { save(); native.pdfBack(); };
+document.getElementById('secure').onclick = () => { save(); native.pdfSecure(); };
+window.addEventListener('resize', () => { if (documentModel) draw().catch(() => {}); });
+native.pdfReady();
+</script></body></html>

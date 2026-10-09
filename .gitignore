@@ -5,3 +5,7 @@ release/
 __pycache__/
 *.pyc
 cool18_candidates.md
+windows/node_modules/
+windows/dist/
+windows/assets/index.html
+windows/assets/settings.html
