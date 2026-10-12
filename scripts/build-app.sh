@@ -25,6 +25,9 @@ mkdir -p "$licenses_dir"
 cp LICENSE "$licenses_dir/FishTouching-Reader-LICENSE"
 cp THIRD_PARTY_NOTICES.md "$licenses_dir/THIRD_PARTY_NOTICES.md"
 cp -f licenses/libsodium-LICENSE "$licenses_dir/"
+cp .build/artifacts/sparkle/Sparkle/LICENSE "$licenses_dir/Sparkle-LICENSE"
+mkdir -p "$app_dir/Contents/Frameworks"
+/usr/bin/ditto .build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework "$app_dir/Contents/Frameworks/Sparkle.framework"
 icons_dir="$app_dir/Contents/Resources/Icons"
 mkdir -p "$icons_dir"
 swift scripts/make-icon.swift "$icons_dir/book.png"
@@ -53,17 +56,29 @@ cat > "$app_dir/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIconFile</key><string>AppIcon.icns</string>
   <key>CFBundleIconName</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.0.1</string>
-  <key>CFBundleVersion</key><string>101</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
 APP_DISPLAY_NAME="$display_name" python3 - "$app_dir/Contents/Info.plist" <<'PY'
-import os, plistlib, sys
+import base64, json, os, plistlib, re, sys
 path = sys.argv[1]
 with open(path, 'rb') as source:
     values = plistlib.load(source)
+key_path = 'Resources/sparkle-public-key.txt'
+with open(key_path) as key_file:
+    key = key_file.read().strip()
+if len(base64.b64decode(key, validate=True)) != 32:
+    raise SystemExit('Invalid Sparkle public key')
+with open('windows/package.json') as manifest:
+    version = json.load(manifest)['version']
+if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version):
+    raise SystemExit('Release version must be major.minor.patch')
+values['CFBundleShortVersionString'] = version
+values['CFBundleVersion'] = version
+values['SUPublicEDKey'] = key
+values['SUFeedURL'] = 'https://github.com/YouDiSN/fishtouching-reader/releases/latest/download/appcast.xml'
+values['SUEnableAutomaticChecks'] = True
 values['CFBundleName'] = os.environ['APP_DISPLAY_NAME']
 values['CFBundleDisplayName'] = os.environ['APP_DISPLAY_NAME']
 with open(path, 'wb') as target:

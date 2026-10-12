@@ -4,6 +4,7 @@ import Carbon
 import Foundation
 import PDFKit
 import UniformTypeIdentifiers
+import Sparkle
 
 private final class PointingHandButton: NSButton {
     override func resetCursorRects() {
@@ -18,6 +19,7 @@ private enum AppDefaults {
 }
 
 final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKScriptMessageHandler {
+    private var updaterController: SPUStandardUpdaterController?
     private let vault = Vault()
     private let pdfLibrary = PDFLibrary()
     private let textLibrary = TextLibrary()
@@ -82,6 +84,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         window.contentView = content
         buildPDFView(in: content)
         window.delegate = self
+        if Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") != nil {
+            updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        }
         buildMenu()
         buildStatusItem()
         installHotKey()
@@ -865,6 +870,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         settings.keyEquivalentModifierMask = [.command]
         let archive = appMenu.addItem(withTitle: "备份其他加密书籍…", action: #selector(archiveOtherSecureBooks), keyEquivalent: "")
         archive.target = self
+        if let updaterController {
+            let update = appMenu.addItem(withTitle: "Check for Updates…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "")
+            update.target = updaterController
+        }
         appMenu.addItem(NSMenuItem.separator())
         appMenu.addItem(withTitle: "退出", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu

@@ -1,43 +1,78 @@
-# macOS Developer ID 签名与公证
+# macOS signing, notarization, and updates
 
-当前公开的 macOS 包只有临时签名，没有 Apple 公证，所以 Gatekeeper 可能显示“Apple 无法验证是否包含恶意软件”。完成下列步骤后，使用 Developer ID 签名、Hardened Runtime 和 Apple 公证重新发布。
+FishTouching Reader uses only the personal identity
+`Developer ID Application: Tengjiao Ji (DR4WPFLXBN)` associated with the owner's
+Apple account `397879704@qq.com`. The signing script rejects other identities and
+verifies the final application's authority and Team ID. Company certificates,
+organization repositories, and company distribution infrastructure are not used.
 
-## 1. 由账号本人完成会员注册
+## Deploy workflow
 
-这个私人项目应使用个人 Apple Account 申请 [Apple Developer Program](https://developer.apple.com/programs/enroll/)，无需加入公司团队。Apple 要求账号本人完成双重认证、身份信息核验、协议确认和会员购买；会员费为每年 99 美元或当地币种。个人会员发行的软件会关联个人开发者身份。请不要把 Apple Account 密码、双重认证码、身份证件或付款信息提交到仓库或聊天中。
+Run **Deploy** on `main` in the personal `YouDiSN/fishtouching-reader` repository.
+Increment `windows/package.json` and its lockfile's root version before each
+release. The macOS bundle, Windows artifact, and GitHub Release use that shared
+version. Released versions are immutable; use a new version instead of replacing
+an existing release.
 
-## 2. 在本机申请 Developer ID Application 证书
+The workflow builds macOS on an Apple Silicon runner, runs the signed app's
+self-tests, signs all Sparkle helpers with hardened runtime and a secure timestamp,
+notarizes the app and DMG, staples and validates both tickets, and checks Gatekeeper.
+The Windows job runs storage tests and Electron smoke tests before and after
+packaging. Publication waits for both jobs, uploads both platform packages and the
+signed update feed to a draft, then publishes it as the latest release.
 
-会员生效后，按 [Apple 的 CSR 指南](https://developer.apple.com/help/account/certificates/create-a-certificate-signing-request/)在“钥匙串访问 → 证书助理”生成 CSR。进入 [Certificates, Identifiers & Profiles](https://developer.apple.com/account/resources/certificates/list)，新增 **Developer ID Application** 证书，上传 CSR，下载 `.cer` 并双击安装。CSR 的私钥必须保留在签名用的这台 Mac 的钥匙串中。这个项目不需要 Developer ID Installer 证书。
+Required GitHub Actions secrets:
 
-检查证书及私钥：
+| Secret | Purpose |
+| --- | --- |
+| `MACOS_CERTIFICATE_P12` | Base64-encoded personal Developer ID Application identity |
+| `MACOS_CERTIFICATE_PASSWORD` | Password protecting that P12 |
+| `APPLE_NOTARY_KEY` | Personal team's App Store Connect API private key |
+| `APPLE_NOTARY_KEY_ID` | ID of that API key |
+| `APPLE_NOTARY_ISSUER` | Issuer of that API key |
+| `SPARKLE_PRIVATE_KEY` | Dedicated FishTouching Reader Ed25519 update-signing key |
 
-```sh
-security find-identity -v -p codesigning
-```
+Credentials are stored as encrypted Actions secrets, imported into a temporary
+runner Keychain, and removed in an always-run cleanup step. Never commit secrets,
+certificate exports, user libraries, or private keys. Keep separate secure backups.
+The public update key is committed in `Resources/sparkle-public-key.txt`.
 
-输出须包含 `Developer ID Application: ... (TEAMID)`。当前机器在 2026-10-09 检查时显示 `0 valid identities found`。
+## Local release
 
-## 3. 只在本机钥匙串保存公证凭据
-
-先在 Apple Account 中创建应用专用密码，然后在终端执行下面的命令。`notarytool` 会安全地提示输入密码；不要把密码写进命令行、脚本或 Git。Team ID 可在 Apple Developer Account 页面查看。
-
-```sh
-xcrun notarytool store-credentials fishtouching-reader \
-  --apple-id '你的 Apple Account 邮箱' \
-  --team-id '你的 TEAMID'
-```
-
-此操作在本机钥匙串保存可向 Apple 提交公证的凭据；个人账户的密码和证书私钥不应上传 GitHub Actions。若使用 Apple Developer app 注册，Apple 说明会员可能按订阅自动续费，注册时请核对付款页面。
-
-## 4. 构建、签名、公证并验证
-
-先更新 `scripts/build-app.sh` 中的应用版本号，再运行：
+Store personal notarization credentials in a Keychain profile using Apple's
+`notarytool store-credentials`. API-key authentication avoids Apple account
+passwords. Then run:
 
 ```sh
 ./scripts/package-notarized-release.sh \
-  'Developer ID Application: 你的姓名 (TEAMID)' \
-  fishtouching-reader
+  'Developer ID Application: Tengjiao Ji (DR4WPFLXBN)' fishtouching-reader
+./scripts/generate-appcast.sh
 ```
 
-脚本只对构建结果的临时副本签名，启用 Hardened Runtime 和安全时间戳；然后提交公证、装订票据，用 `codesign`、`stapler` 和 `spctl` 验证，最后生成 ZIP 与 SHA-256。只有检查全部通过后才能替换 GitHub Release 包。Apple 的公证是自动恶意软件与签名检查，不是 App Store 人工审核。
+`SIGNING_KEYCHAIN` optionally selects a dedicated signing/notarization Keychain.
+`SPARKLE_PRIVATE_KEY_FILE` optionally selects a protected update-key file; otherwise
+Sparkle uses the `fishtouching-reader` account in the login Keychain.
+The release script stages a default-named copy without renaming the local app.
+`package-release.sh` remains available for ad-hoc development ZIPs; these are not
+notarized release artifacts.
+
+## Installation and updates
+
+Open the DMG and drag the app to Applications. ZIP installation is also supported.
+A notarized download may still show macOS's normal first-open confirmation.
+The app checks the HTTPS feed in the latest personal GitHub Release using Sparkle
+and exposes **Check for Updates…** in its application menu. Update archives carry
+Ed25519 signatures in addition to Apple's code signature. Install/relaunch follows
+Sparkle's user interface; updates do not change the library's storage location.
+
+Versions before 1.0.2 do not contain an updater. Install the first updater-enabled
+release manually. Windows still uses manual updates. App-name and icon preferences
+remain outside the signed bundle; only the local app directory is renamed.
+
+The macOS build is arm64 with a macOS 13 deployment target. Homebrew libsodium
+may have a newer deployment target, so older macOS compatibility remains unverified.
+A passing build or notarization does not establish older-system compatibility or
+prove the complete old-to-new automatic-update installation flow.
+
+References: [Apple Developer ID](https://developer.apple.com/developer-id/),
+[Sparkle integration](https://sparkle-project.org/documentation/).

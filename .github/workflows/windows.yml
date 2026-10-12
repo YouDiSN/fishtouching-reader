@@ -8,6 +8,7 @@ on:
       - 'Resources/settings.html'
       - 'demo/fixtures/**'
       - '.github/workflows/windows.yml'
+  workflow_call:
   workflow_dispatch:
     inputs:
       release_tag:
@@ -52,15 +53,20 @@ jobs:
           FISHTOUCHING_SMOKE_FIXTURES: ${{ github.workspace }}\demo\fixtures
         run: |
           & windows/scripts/smoke.ps1 'windows/dist/FishTouching Reader-win32-x64/FishTouching Reader.exe' @('--smoke')
+      - name: Read version
+        shell: pwsh
+        run: |
+          $version = (Get-Content windows/package.json | ConvertFrom-Json).version
+          "APP_VERSION=$version" >> $env:GITHUB_ENV
       - name: Create ZIP
         shell: pwsh
         run: |
-          Compress-Archive -Path 'windows/dist/FishTouching Reader-win32-x64/*' -DestinationPath 'FishTouching-Reader-Windows-x64-v1.0.1.zip' -CompressionLevel Optimal
-          Get-FileHash 'FishTouching-Reader-Windows-x64-v1.0.1.zip' -Algorithm SHA256 | Format-List
+          Compress-Archive -Path 'windows/dist/FishTouching Reader-win32-x64/*' -DestinationPath 'FishTouching-Reader-Windows-x64-v${{ env.APP_VERSION }}.zip' -CompressionLevel Optimal
+          Get-FileHash 'FishTouching-Reader-Windows-x64-v${{ env.APP_VERSION }}.zip' -Algorithm SHA256 | Format-List
       - uses: actions/upload-artifact@v4
         with:
-          name: FishTouching-Reader-Windows-x64-v1.0.1
-          path: FishTouching-Reader-Windows-x64-v1.0.1.zip
+          name: FishTouching-Reader-Windows-x64-v${{ env.APP_VERSION }}
+          path: FishTouching-Reader-Windows-x64-v${{ env.APP_VERSION }}.zip
           if-no-files-found: error
       - name: Attach Windows ZIP to Release
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag != '' }}
@@ -68,4 +74,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
-        run: gh release upload $env:RELEASE_TAG 'FishTouching-Reader-Windows-x64-v1.0.1.zip' --clobber
+        run: gh release upload $env:RELEASE_TAG 'FishTouching-Reader-Windows-x64-v${{ env.APP_VERSION }}.zip' --clobber
