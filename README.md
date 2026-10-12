@@ -35,7 +35,8 @@ FishTouching Reader 是一款 macOS 和 Windows 本地阅读器：把工作文�
 ## 其他功能
 
 - 支持导入本地 TXT、PDF；加密书库中的内容会加密保存。「我的书库」的普通文件不加密。
-- 两个书库都有最近阅读、阅读进度、搜索和按字数排序。列表悬停后可移除书籍；应用会删除自己管理的副本、目录记录与进度，**不会删除最初导入的原始文件**。
+- 同一应用可创建两个相互独立的加密书库，分别用不同密码进入，各自保存加密密钥、书目和阅读进度。已有书库保留原路径；在设置中验证原书库密码后可创建第二个书库。锁定后输入哪个密码，就进入对应书库。可在解锁后输入另一书库密码移动书籍，复制并验证书籍与进度后再移除原副本；修改密码只影响打开设置时选定的书库。
+- 普通书库和各加密书库都有最近阅读、阅读进度、搜索和按字数排序。列表悬停后可移除书籍；应用会删除自己管理的副本、目录记录与进度，**不会删除最初导入的原始文件**。
 - macOS 用 `Control + Option + H` 显示或隐藏窗口、`Command + ,` 打开设置；Windows 用 `Ctrl + Alt + H` 和 `Ctrl + ,`。菜单栏或系统托盘也提供入口。
 
 ## 下载和安装
@@ -80,7 +81,7 @@ The release flow is **develop → validate → commit and push → manually run 
    npm test --prefix windows
    ```
 
-2. **Prepare the release version.** Use a new, increasing `major.minor.patch` version, such as `1.0.3` after `1.0.2`. Update `windows/package.json` and both root-package version entries in `windows/package-lock.json`; do not change dependency versions just to bump the app. The macOS build reads this shared version and writes it to both `CFBundleShortVersionString` and `CFBundleVersion`. Update [release notes](docs/release-notes.md) and any version-specific documentation. Never overwrite an already published version.
+2. **Prepare the release version.** Use a new, increasing `major.minor.patch` version, such as `1.0.4` after `1.0.3`. Update `windows/package.json` and both root-package version entries in `windows/package-lock.json`; do not change dependency versions just to bump the app. The macOS build reads this shared version and writes it to both `CFBundleShortVersionString` and `CFBundleVersion`. Update [release notes](docs/release-notes.md) and any version-specific documentation. Never overwrite an already published version.
 
 3. **Commit and push to the personal repository.** Review the diff, commit the intended changes, and push them to `main` in `YouDiSN/fishtouching-reader`. A request to edit or commit alone is not permission to publish; run the next step when a release is requested.
 
@@ -104,11 +105,11 @@ https://github.com/YouDiSN/fishtouching-reader/releases/latest/download/appcast.
 
 When a newer version is available, Sparkle presents its update UI. The user can accept the update; Sparkle downloads and verifies the archive, replaces the application, and relaunches it. Users can also select **Check for Updates…** in the app menu. This is an application update check, not a push notification while the app is closed. Library data remains in its existing Application Support directory.
 
-Users on v1.0.1 or earlier must manually install an updater-enabled version once. Windows updates remain manual. The v1.0.2 release's signatures, notarization, and live feed were verified, but a complete old-to-new update installation has not yet been tested. For the next release, explicitly verify the `1.0.2 → new version` download, installation, relaunch, and preservation of a temporary test library and reading progress before claiming end-to-end update coverage. Older macOS compatibility also remains unverified on real hardware.
+Users on v1.0.1 or earlier must manually install an updater-enabled version once. Windows updates remain manual. The v1.0.2 release's signatures, notarization, and live feed were verified, but a complete old-to-new update installation has not yet been tested. For v1.0.3, explicitly verify the `1.0.2 → 1.0.3` download, installation, relaunch, and preservation of a temporary test library and reading progress before claiming end-to-end update coverage. Older macOS compatibility also remains unverified on real hardware.
 
 ## 存储和备份
 
-书库数据保存在 `~/Library/Application Support/LocalLibrary/`，不会随仓库或下载包附带。加密书库的文件名为 UUID；书名、来源网址和内容存放在 AES-GCM 加密文件中，主密钥由用户密码通过 Argon2id（随机 salt、64 MiB 内存、3 次计算）派生的密钥包装。目录中不再保存 `vault.key`。「我的书库」位于 `public-pdfs` 和 `public-texts`，不加密。
+书库数据保存在 `~/Library/Application Support/LocalLibrary/`，不会随仓库或下载包附带。原加密书库保持原路径，第二个加密书库位于 `spaces/2`，两者互不共享书目和进度。各加密书库的文件名为 UUID；书名、来源网址和内容存放在 AES-GCM 加密文件中，各自主密钥由对应密码通过 Argon2id（随机 salt、64 MiB 内存、3 次计算）派生的密钥包装。目录中不再保存 `vault.key`。「我的书库」位于 `public-pdfs` 和 `public-texts`，不加密。
 
 Windows 书库位于 `%APPDATA%\FishTouching Reader\`，加密书库使用 scrypt（128 MiB）与 AES-256-GCM。两个平台的书库格式独立，目前没有迁移或同步功能。Windows 的普通书库不加密。
 

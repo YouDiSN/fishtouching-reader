@@ -52,6 +52,7 @@
   .book-item .remove-book { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; padding: 0; border-radius: 7px; background: transparent; color: #b9cbbd; font-size: 22px; line-height: 1; opacity: 0; pointer-events: none; }
   .book-item:hover .remove-book, .book-item:focus-within .remove-book { opacity: 1; pointer-events: auto; }
   .book-item .remove-book:hover, .book-item .remove-book:focus-visible { background: #713e3e; color: #fff; }
+  .book-item .transfer-book { background: #293a33; color: #dce9df; font-size: 12px; padding: 7px 9px; }
   @media (hover: none) { .book-item .remove-book { opacity: 1; pointer-events: auto; } }
   .confirm-dialog { width: min(420px, calc(100vw - 36px)); padding: 25px; border: 1px solid #496153; border-radius: 15px; background: #1a2520; color: #e8eee9; box-shadow: 0 24px 70px #0009; }
   .confirm-dialog::backdrop { background: #0009; }
@@ -78,6 +79,7 @@
 </style>
 </head>
 <body><main id="app"></main><dialog id="removeDialog" class="confirm-dialog" aria-labelledby="removeTitle"><h2 id="removeTitle">确认移除？</h2><p id="removeBookTitle"></p><p class="muted">将从书库移除，并删除应用保存的副本和阅读进度。本地导入的原始文件不会被删除。</p><div class="row"><button type="button" class="secondary" id="cancelRemove">取消</button><button type="button" class="danger" id="confirmRemove">确认移除</button></div></dialog>
+<dialog id="transferDialog" class="confirm-dialog" aria-labelledby="transferTitle"><h2 id="transferTitle">移至另一书库</h2><p id="transferBookTitle"></p><p class="muted">输入另一书库的密码。书籍和阅读进度会先复制并验证，再从当前书库移除。</p><form id="transferForm"><input id="transferPassword" type="password" autocomplete="off" placeholder="另一书库密码" required><div class="row"><button type="button" class="secondary" id="cancelTransfer">取消</button><button type="submit">确认移动</button></div></form></dialog>
 <script>
 const app = document.getElementById('app');
 let state = {type:'hidden'};
@@ -91,6 +93,7 @@ let bookSort = ['recent','short','long'].includes(localStorage.getItem('bookSort
 let progressTimer;
 let setupIconID = 'fish';
 let pendingRemoval = null;
+let pendingTransfer = null;
 let searchQuery = '';
 const chunkSize = 350;
 function post(action, data={}) { window.webkit?.messageHandlers?.app?.postMessage({action,...data}); }
@@ -112,8 +115,13 @@ function confirmRemoval(id,kind,name) {
 document.getElementById('cancelRemove').onclick=closeRemoveDialog;
 document.getElementById('confirmRemove').onclick=()=>{const target=pendingRemoval;closeRemoveDialog();if(target)post('removeBook',target);};
 document.getElementById('removeDialog').addEventListener('cancel',()=>{pendingRemoval=null;document.getElementById('removeBookTitle').textContent='';});
+function closeTransferDialog() { pendingTransfer=null;document.getElementById('transferPassword').value='';document.getElementById('transferDialog').close(); }
+document.getElementById('cancelTransfer').onclick=closeTransferDialog;
+document.getElementById('transferDialog').addEventListener('cancel',()=>{pendingTransfer=null;document.getElementById('transferPassword').value='';});
+document.getElementById('transferForm').onsubmit=e=>{e.preventDefault();const id=pendingTransfer;const password=document.getElementById('transferPassword').value;closeTransferDialog();if(id)post('transferBook',{id,password});};
 function receive(next) {
   if (document.getElementById('removeDialog').open) closeRemoveDialog();
+  if (document.getElementById('transferDialog').open) closeTransferDialog();
   if (next.type==='error') { state = {...state, type:next.context, error:next.message}; }
   else { state=next; }
   if (state.type!=='book') { book=null; displayParagraphs=[]; clearTimeout(progressTimer); window.onscroll=null; }
@@ -235,9 +243,15 @@ function renderBookItems(books,list,isRecent) {
     const item=document.createElement('div'); item.className='card book-item';
     const label=document.createElement('div'); label.innerHTML=`<div class="book-title">${h(title(b.title))}</div><div class="muted">${h(b.host)} · ${b.kind==='pdf'?`${b.pageCount} 页`:`正文 ${Number(b.wordCount||0).toLocaleString('zh-CN')} 字`}</div>${progressHTML((b.paragraph||0)+(b.fraction||0),b.kind==='pdf'?b.pageCount:b.count,b.kind==='pdf'?`第 ${(b.paragraph||0)+1} / ${b.pageCount} 页`:`${b.count} 段`)}${isRecent?`<div class="muted">上次阅读 ${h(readDate(b.updatedAt))}</div>`:''}`;
     const button=document.createElement('button'); button.textContent='继续阅读'; button.onclick=()=>post('read',{id:b.id});
+    if (!isRecent) {
+      const transfer=document.createElement('button');transfer.className='transfer-book';transfer.textContent='移至另一书库';
+      transfer.onclick=()=>{pendingTransfer=b.id;document.getElementById('transferBookTitle').textContent=`《${title(b.title)}》`;document.getElementById('transferDialog').showModal();};
+      item.append(label,button,transfer);
+    }
     const remove=document.createElement('button'); remove.className='remove-book'; remove.type='button'; remove.textContent='×'; remove.title='从书库移除'; remove.setAttribute('aria-label',`移除 ${title(b.title)}`);
     remove.onclick=()=>confirmRemoval(b.id,b.kind,title(b.title));
-    item.append(label,button,remove); list.append(item);
+    if (isRecent) item.append(label,button);
+    item.append(remove); list.append(item);
   }
 }
 function renderBook() {

@@ -34,6 +34,35 @@ test('secure title, content and progress stay encrypted and password can change'
   vault.remove(entry.id);
   assert.equal(vault.list().length, 0);
 });
+test('independent vaults keep passwords and transferred progress separate', t => {
+  const root = temporary(t);
+  const first = new Vault(path.join(root, 'vault'));
+  const second = new Vault(path.join(root, 'vault-spaces', '2'));
+  first.configure('first-space-pass'); second.configure('second-space-pass');
+  const data = Buffer.from(JSON.stringify({ paragraphs: ['第一卷', '第二卷'] }));
+  const original = first.add({ title: '虚构合卷', kind: 'text', data, paragraphs: ['第一卷', '第二卷'] });
+  first.progress(original.id, { position: 1, fraction: 0.4 });
+  const movedID = first.transfer(original.id, second);
+  assert.equal(first.list().length, 0);
+  assert.equal(second.list()[0].id, movedID);
+  assert.deepEqual(JSON.parse(second.load(movedID)), JSON.parse(data));
+  assert.equal(second.list()[0].progress.position, 1);
+  assert.equal(second.list()[0].progress.fraction, 0.4);
+  const legacyTXT = Buffer.from('旧版导入的原文\n第二段', 'utf8');
+  const legacy = first.add({ title: '旧版 TXT', kind: 'text', data: legacyTXT, paragraphs: ['旧版导入的原文', '第二段'] });
+  const legacyMoved = first.transfer(legacy.id, second);
+  assert.deepEqual(second.load(legacyMoved), legacyTXT);
+  assert.equal(second.list().find(e => e.id === legacyMoved).count, 2);
+  first.lock(); second.lock();
+  assert.equal(first.matchesPassword('first-space-pass'), true);
+  assert.equal(first.matchesPassword('second-space-pass'), false);
+  assert.equal(second.matchesPassword('second-space-pass'), true);
+  assert.equal(second.matchesPassword('first-space-pass'), false);
+  first.changePassword('first-space-pass', 'first-space-updated'); first.lock();
+  assert.equal(first.matchesPassword('first-space-pass'), false);
+  assert.equal(first.matchesPassword('first-space-updated'), true);
+  assert.equal(second.matchesPassword('second-space-pass'), true);
+});
 test('removing an imported public copy keeps the original file', t => {
   const root = temporary(t);
   const source = path.join(root, '正式.txt');

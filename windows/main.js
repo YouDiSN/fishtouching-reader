@@ -17,9 +17,11 @@ const { Vault, writeAtomic } = require('./vault');
 const { PublicLibrary, paragraphs } = require('./library');
 
 const DEFAULT_NAME = 'FishTouching Reader';
+const MAX_VAULTS = 2;
 const ICONS = new Set(['fish', 'book', 'night', 'leaf', 'coffee', 'star', 'pencil', 'music', 'sunrise', 'cloud']);
 const assets = path.join(__dirname, 'assets');
-let root, vault, publicLibrary, preferences, window, settingsWindow, tray;
+let root, vault, vaults, publicLibrary, preferences, window, settingsWindow, tray;
+let activeVaultIndex = 0, resumeVaultIndex = 0, settingsVaultIndex = 0;
 let currentTab = 'normal', currentId = null, resumeId = null, pdf = null;
 let switching = false, dialogOpen = false, quitting = false;
 const smokeMode = Boolean(process.env.FISHTOUCHING_SMOKE_ROOT) || process.argv.includes('--smoke');
@@ -29,6 +31,11 @@ if (smokeMode) {
   setTimeout(() => { traceSmoke(`timed out: ${smokeStage}`); process.stderr.write(`Smoke timed out: ${smokeStage}\n`); process.exit(1); }, 60000).unref();
 }
 
+function secureParagraphs(data) {
+  try { const book = JSON.parse(data.toString('utf8')); if (Array.isArray(book.paragraphs)) return book.paragraphs; }
+  catch { /* Earlier TXT imports stored the original bytes. */ }
+  return paragraphs(data);
+}
 function preferencePath() { return path.join(root, 'preferences.json'); }
 function savePreferences() { writeAtomic(preferencePath(), JSON.stringify(preferences)); }
 function iconPath(id = preferences.iconID) {
@@ -48,7 +55,9 @@ function sendSettings(extra = {}) {
   const customIcon = iconPath('custom');
   const payload = { name: preferences.pendingName || preferences.name || DEFAULT_NAME,
     iconID: preferences.iconID || 'fish', icon: fs.existsSync(currentIcon) ? `data:image/png;base64,${fs.readFileSync(currentIcon).toString('base64')}` : '',
-    hasCustomIcon: fs.existsSync(customIcon), customIcon: fs.existsSync(customIcon) ? `data:image/png;base64,${fs.readFileSync(customIcon).toString('base64')}` : undefined, ...extra };
+    hasCustomIcon: fs.existsSync(customIcon), customIcon: fs.existsSync(customIcon) ? `data:image/png;base64,${fs.readFileSync(customIcon).toString('base64')}` : undefined,
+    passwordScope: settingsVaultIndex === 0 ? 'primary' : 'private',
+    canCreatePrivate: settingsVaultIndex === 0, ...extra };
   settingsWindow.webContents.executeJavaScript(`receiveSettings(${JSON.stringify(payload)})`).catch(() => {});
 }
 function error(message, context = currentTab === 'secure' ? 'library' : 'normal') { send({ type: 'error', context, message: String(message?.message || message) }); }
@@ -76,9 +85,9 @@ async function showNormal() { currentTab = 'normal'; currentId = null; window.se
 async function showSecure() { currentTab = 'secure'; currentId = null; window.setContentProtection(vault.unlocked); await loadReader(vault.unlocked ? secureState() : { type: 'locked' }); }
 async function showText(entry, secure) {
   const data = secure ? vault.load(entry.id) : publicLibrary.load(entry);
-  const parts = secure ? JSON.parse(data).paragraphs : paragraphs(data);
+  const parts = secure ? secureParagraphs(data) : paragraphs(data);
   currentTab = secure ? 'secure' : 'normal'; currentId = entry.id;
-  if (secure) resumeId = entry.id;
+  if (secure) { resumeId = entry.id; resumeVaultIndex = activeVaultIndex; }
   await loadReader({ type: 'book', tab: currentTab, id: entry.id, encodedTitle: entry.title,
     paragraphs: parts, paragraph: entry.progress?.position || 0, fraction: entry.progress?.fraction || 0 });
   if (secure) window.setContentProtection(true);
@@ -89,7 +98,7 @@ async function openPDF(entry, secure, cover = false) {
   pdf = { entry, secure, cover, data };
   currentTab = secure ? 'secure' : 'normal';
   currentId = entry.id;
-  if (secure) resumeId = entry.id;
+  if (secure) { resumeId = entry.id; resumeVaultIndex = activeVaultIndex; }
   window.setContentProtection(secure);
   await window.loadFile(path.join(assets, 'pdf.html'));
 }
@@ -119,7 +128,7 @@ async function coverSecure(openCover = true) {
       ]);
       if (result) updateProgress(previous, result.paragraph, result.fraction, true);
     }
-    if (previous) resumeId = previous;
+    if (previous) { resumeId = previous; resumeVaultIndex = activeVaultIndex; }
     vault.lock(); currentTab = 'normal'; currentId = null;
     window.setContentProtection(false);
     const cover = openCover && previous ? publicLibrary.list().filter(e => e.kind === 'pdf').sort((a, b) => b.importedAt - a.importedAt)[0] : null;
@@ -179,7 +188,16 @@ async function handleAction(data) {
         savePreferences(); applyAppearance(); await showNormal(); break;
       }
       case 'unlock': {
-        try { vault.unlock(data.password || ''); if (resumeId && vault.list().some(e => e.id === resumeId)) await openEntry(resumeId, true); else await showSecure(); }
+        try {
+          const password = data.password || '';
+          vaults.forEach(v => v.lock());
+          const index = vaults.findIndex(v => v.matchesPassword(password));
+          if (index < 0) throw new Error('密码不正确。');
+          activeVaultIndex = index; vault = vaults[index];
+          vault.unlock(password);
+          if (resumeId && resumeVaultIndex === activeVaultIndex && vault.list().some(e => e.id === resumeId)) await openEntry(resumeId, true);
+          else { resumeId = null; await showSecure(); }
+        }
         catch (e) { send({ type: 'locked', error: e.message }); }
         break;
       }
@@ -197,8 +215,7 @@ async function handleAction(data) {
           if (!result.canceled && result.filePath) {
             const data = vault.load(entry.id);
             try {
-              const book = JSON.parse(data.toString('utf8'));
-              fs.writeFileSync(result.filePath, book.paragraphs.join('\n\n'), { encoding: 'utf8', mode: 0o600 });
+              fs.writeFileSync(result.filePath, secureParagraphs(data).join('\n\n'), { encoding: 'utf8', mode: 0o600 });
             } finally { data.fill(0); }
           }
         } finally { dialogOpen = false; }
@@ -211,22 +228,39 @@ async function handleAction(data) {
         else { publicLibrary.remove(data.id); send(normalState()); }
         break;
       }
+      case 'transferBook': {
+        if (currentTab !== 'secure' || !vault.unlocked) break;
+        const target = vaults.find((v, index) => index !== activeVaultIndex && v.matchesPassword(data.password || ''));
+        if (!target) throw new Error('另一书库密码不正确，或书库尚未创建。');
+        target.unlock(data.password || '');
+        try {
+          vault.transfer(data.id, target);
+          if (resumeId === data.id) resumeId = null;
+          if (currentId === data.id) currentId = null;
+          send(secureState());
+        } finally { target.lock(); }
+        break;
+      }
       case 'progress': if (!pdf) updateProgress(currentId, data.paragraph, data.fraction); break;
       case 'selectIcon': if (ICONS.has(data.id)) { preferences.iconID = data.id; savePreferences(); applyAppearance();
         window.webContents.executeJavaScript(`selectSetupIcon(${JSON.stringify(data.id)})`).catch(() => {}); } break;
       case 'chooseIcon': await chooseIcon(); break;
-      case 'settings': await coverSecure(); showSettings(); break;
+      case 'settings': settingsVaultIndex = currentTab === 'secure' && vault.unlocked ? activeVaultIndex : 0; await coverSecure(); showSettings(); break;
       case 'hide': await coverSecure(); window.hide(); break;
     }
   } catch (e) { error(e, action === 'setup' ? 'setup' : undefined); }
 }
 function showSettings() {
-  if (settingsWindow && !settingsWindow.isDestroyed()) { settingsWindow.show(); settingsWindow.focus(); return; }
+  if (settingsWindow && !settingsWindow.isDestroyed()) { settingsWindow.show(); settingsWindow.focus(); sendSettings(); return; }
   settingsWindow = new BrowserWindow({ width: 780, height: 560, minWidth: 660, minHeight: 460,
     title: `设置 · ${preferences.name}`, parent: window, icon: iconPath(), autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), nodeIntegration: false, contextIsolation: true, sandbox: true } });
   settingsWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   settingsWindow.webContents.on('did-finish-load', () => sendSettings());
+  settingsWindow.on('blur', () => {
+    settingsWindow?.webContents.executeJavaScript("document.getElementById('passwordForm')?.reset(); document.getElementById('privateForm')?.reset()").catch(() => {});
+    if (settingsVaultIndex > 0 && settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.close();
+  });
   settingsWindow.on('closed', () => { settingsWindow = null; });
   settingsWindow.loadFile(path.join(assets, 'settings.html'));
 }
@@ -247,8 +281,22 @@ async function settingsAction(data) {
       case 'restart': app.relaunch(); quitting = true; app.quit(); break;
       case 'changePassword': {
         if (data.new !== data.confirm) throw new Error('两次输入的新密码不一致。');
-        vault.changePassword(data.old || '', data.new || '');
+        if (vaults.some((v, i) => i !== settingsVaultIndex && v.matchesPassword(data.new || '')))
+          throw new Error('不同书库不能使用相同密码。');
+        const target = vaults[settingsVaultIndex], wasLocked = !target.unlocked;
+        try { target.changePassword(data.old || '', data.new || ''); }
+        finally { if (wasLocked) target.lock(); }
         sendSettings({ message: '密码已更新。' }); break;
+      }
+      case 'createPrivate': {
+        if (settingsVaultIndex !== 0) throw new Error('请从普通加密书库创建独立书库。');
+        const target = vaults.find((v, i) => i > 0 && !v.configured);
+        if (!target) throw new Error('书库已达到数量上限。');
+        if (data.password !== data.confirm) throw new Error('两次输入的新密码不一致。');
+        if (!vaults[0].matchesPassword(data.primary || '')) throw new Error('当前书库密码不正确。');
+        if (vaults.some(v => v.matchesPassword(data.password || ''))) throw new Error('不同书库不能使用相同密码。');
+        target.configure(data.password || ''); target.lock();
+        sendSettings({ message: '独立书库已创建。锁定后输入新密码即可进入。' }); break;
       }
     }
   } catch (e) { sendSettings({ error: e.message }); }
@@ -268,7 +316,7 @@ function createWindow() {
   window.on('close', event => { if (!quitting) { event.preventDefault(); coverSecure().finally(() => window.hide()); } });
   const loaded = window.loadFile(path.join(assets, 'index.html'));
   const menu = Menu.buildFromTemplate([{ label: '文件', submenu: [
-    { label: '设置', accelerator: 'CommandOrControl+,', click: () => { coverSecure().finally(showSettings); } },
+    { label: '设置', accelerator: 'CommandOrControl+,', click: () => { settingsVaultIndex = currentTab === 'secure' && vault.unlocked ? activeVaultIndex : 0; coverSecure().finally(showSettings); } },
     { label: '显示／隐藏', accelerator: 'Control+Alt+H', click: toggleWindow },
     { type: 'separator' }, { label: '退出', click: () => { quitting = true; app.quit(); } }
   ] }]);
@@ -277,7 +325,7 @@ function createWindow() {
   tray.setToolTip(preferences.name);
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: '显示／隐藏    Ctrl+Alt+H', click: toggleWindow },
-    { label: '设置    Ctrl+,', click: () => coverSecure().finally(showSettings) },
+    { label: '设置    Ctrl+,', click: () => { settingsVaultIndex = currentTab === 'secure' && vault.unlocked ? activeVaultIndex : 0; coverSecure().finally(showSettings); } },
     { type: 'separator' }, { label: '退出', click: () => { quitting = true; app.quit(); } }
   ]));
   globalShortcut.register('Control+Alt+H', toggleWindow);
@@ -320,8 +368,19 @@ async function runSmoke() {
   await coverSecure();
   const library = await window.webContents.executeJavaScript("document.querySelector('h1')?.textContent");
   if (currentTab !== 'normal' || pdf || library !== '我的书库') throw new Error('Secure library did not switch to the ordinary library.');
+  smokeStage = 'route independent vault passwords'; traceSmoke(smokeStage); process.stdout.write(`${smokeStage}\n`);
+  if (vaults.length !== MAX_VAULTS) throw new Error('Vault limit mismatch.');
+  vaults[1].configure('second-space-pass');
+  vaults[1].add({ title: '另一份虚构短篇', kind: 'text', data: Buffer.from(JSON.stringify({ paragraphs: ['另一份虚构短篇'] })), paragraphs: ['另一份虚构短篇'] });
+  vaults[1].lock();
+  await showSecure();
+  await handleAction({ action: 'unlock', password: 'second-space-pass' });
+  if (activeVaultIndex !== 1 || vault.list().map(e => e.title).join() !== '另一份虚构短篇') throw new Error('Second vault leaked primary catalog.');
+  await coverSecure(false); await showSecure();
+  await handleAction({ action: 'unlock', password: 'test4321' });
+  if (activeVaultIndex !== 0 || vault.list().map(e => e.title).join() !== '窗边的橘猫') throw new Error('Primary vault leaked second catalog.');
   fs.writeFileSync(path.join(root, 'smoke-ok.txt'), 'read, cover PDF, lock, resume');
-  process.stdout.write('Windows app smoke passed: read, cover PDF, lock, resume.\n');
+  process.stdout.write('Windows app smoke passed: read, cover PDF, lock, resume, independent vaults.\n');
   process.exit(0);
 }
 app.whenReady().then(async () => {
@@ -334,7 +393,9 @@ app.whenReady().then(async () => {
   fs.mkdirSync(root, { recursive: true });
   preferences = fs.existsSync(preferencePath()) ? JSON.parse(fs.readFileSync(preferencePath(), 'utf8')) : { name: DEFAULT_NAME, iconID: 'fish' };
   if (preferences.pendingName) { preferences.name = preferences.pendingName; delete preferences.pendingName; savePreferences(); }
-  vault = new Vault(path.join(root, 'vault'));
+  vaults = [new Vault(path.join(root, 'vault')),
+    ...Array.from({ length: MAX_VAULTS - 1 }, (_, i) => new Vault(path.join(root, 'vault-spaces', String(i + 2))))];
+  vault = vaults[0];
   publicLibrary = new PublicLibrary(path.join(root, 'public'));
   ipcMain.on('app-action', (event, data) => { if (event.sender === window?.webContents) handleAction(data); });
   ipcMain.on('settings-action', (event, data) => { if (event.sender === settingsWindow?.webContents) settingsAction(data); });
@@ -357,5 +418,5 @@ app.whenReady().then(async () => {
   await createWindow(); traceSmoke('window ready');
   if (smokeMode) await runSmoke();
 }).catch(e => { traceSmoke(`startup error: ${e.stack || e}`); process.stderr.write(`${e.stack || e}\n`); process.exit(1); });
-app.on('will-quit', () => { globalShortcut.unregisterAll(); vault?.lock(); });
+app.on('will-quit', () => { globalShortcut.unregisterAll(); vaults?.forEach(v => v.lock()); });
 app.on('window-all-closed', () => { if (quitting) app.quit(); });

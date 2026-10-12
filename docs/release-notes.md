@@ -1,3 +1,5 @@
+v1.0.3: The app can hold two separate encrypted libraries, each opened by its own password. Existing libraries keep their original paths and data. Books and reading progress can be moved after the destination password is entered; the source is removed after verification. Password changes affect only the selected library. macOS uses the existing personal Developer ID notarized release flow; Windows remains unsigned.
+
 Personal Developer ID signing, Apple notarization, and macOS automatic updates.
 
 - macOS: Apple Silicon (arm64), macOS 13 deployment target. Open the DMG and drag FishTouching Reader to Applications, or install from the notarized ZIP. The app and disk image carry stapled Apple notarization tickets and use Tengjiao Ji's personal Developer ID (DR4WPFLXBN). macOS may still ask for normal first-open confirmation.

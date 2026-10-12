@@ -70,6 +70,13 @@ class Vault {
     writeAtomic(this.configPath, JSON.stringify(this._config(this.key, newPassword)));
     if (!wasUnlocked) this.lock();
   }
+  matchesPassword(password) {
+    if (!this.configured) return false;
+    const probe = new Vault(this.root);
+    try { probe.unlock(password); return true; }
+    catch { return false; }
+    finally { probe.lock(); }
+  }
   _requireKey() { if (!this.key) throw new Error('加密书库已锁定。'); }
   _catalog() { this._requireKey(); return JSON.parse(open(fs.readFileSync(this.catalogPath), this.key)); }
   _writeCatalog(catalog) { writeAtomic(this.catalogPath, seal(Buffer.from(JSON.stringify(catalog)), this.key)); }
@@ -111,6 +118,32 @@ class Vault {
     this._writeCatalog(catalog);
     const file = path.join(this.dataDir, `${id}.bin`);
     if (fs.existsSync(file)) fs.unlinkSync(file);
+  }
+  transfer(id, target) {
+    this._requireKey(); target._requireKey();
+    if (this.root === target.root) throw new Error('不能移动到同一书库。');
+    const entry = this.list().find(e => e.id === id);
+    if (!entry) throw new Error('找不到这本书。');
+    const data = this.load(id);
+    let copy;
+    try {
+      copy = target.add({ title: entry.title, sourceURL: entry.sourceURL, kind: entry.kind,
+        data, paragraphs: [],
+        pageCount: entry.pageCount });
+      target.update(copy.id, { importedAt: entry.importedAt, wordCount: entry.wordCount,
+        count: entry.count, progress: entry.progress });
+      const verified = target.load(copy.id);
+      try { if (!crypto.timingSafeEqual(crypto.createHash('sha256').update(data).digest(),
+          crypto.createHash('sha256').update(verified).digest())) throw new Error('书籍复制校验失败。'); }
+      finally { verified.fill(0); }
+      if (JSON.stringify(target.list().find(e => e.id === copy.id).progress) !== JSON.stringify(entry.progress))
+        throw new Error('阅读进度复制校验失败。');
+    } catch (error) {
+      if (copy) target.remove(copy.id);
+      throw error;
+    } finally { data.fill(0); }
+    this.remove(id);
+    return copy.id;
   }
 }
 module.exports = { Vault, seal, open, writeAtomic, words };

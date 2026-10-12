@@ -141,8 +141,9 @@ final class Vault {
         let raw: Data
         do { raw = try open(wrapped, with: wrapping) } catch { throw VaultFailure.wrongPassword }
         guard raw.count == 32 else { throw VaultFailure.badData }
-        key = SymmetricKey(data: raw)
-        _ = try catalog()
+        let candidate = SymmetricKey(data: raw)
+        _ = try decoder.decode(SecureCatalog.self, from: open(Data(contentsOf: catalogURL), with: candidate))
+        key = candidate
         try? FileManager.default.removeItem(at: keyURL)
         try? FileManager.default.removeItem(at: oldBooksRoot)
     }
@@ -151,6 +152,16 @@ final class Vault {
         try unlock(password: old)
         guard let key else { throw VaultFailure.locked }
         try encoder.encode(config(password: new, master: key)).write(to: configURL, options: .atomic)
+    }
+    func matchesPassword(_ password: String) -> Bool {
+        guard isConfigured else { return false }
+        guard let config = try? readConfig(), let salt = config.salt, let wrapped = config.wrappedKey,
+              let operations = config.operations, let memory = config.memory,
+              let wrapping = try? derive(password, salt: salt, operations: operations, memory: memory),
+              let raw = try? open(wrapped, with: wrapping), raw.count == 32,
+              let catalogData = try? open(Data(contentsOf: catalogURL), with: SymmetricKey(data: raw)),
+              (try? decoder.decode(SecureCatalog.self, from: catalogData)) != nil else { return false }
+        return true
     }
     func lock() { key = nil }
     private func catalog() throws -> SecureCatalog {
@@ -224,6 +235,36 @@ final class Vault {
         let progress = try progressURL(id)
         if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
         if FileManager.default.fileExists(atPath: progress.path) { try FileManager.default.removeItem(at: progress) }
+    }
+    @discardableResult
+    func transferBook(_ id: String, to destination: Vault) throws -> String {
+        guard let sourceKey = key, let targetKey = destination.key, root != destination.root,
+              let entry = try catalog().entries.first(where: { $0.id == id }) else { throw VaultFailure.badData }
+        let plain = try open(Data(contentsOf: dataURL(id)), with: sourceKey)
+        let progressFile = try progressURL(id)
+        let progress = FileManager.default.fileExists(atPath: progressFile.path)
+            ? try open(Data(contentsOf: progressFile), with: sourceKey) : nil
+        let newID = try destination.insert(data: plain, title: entry.title, sourceURL: entry.sourceURL,
+                                           kind: entry.kind, importedAt: entry.importedAt,
+                                           paragraphCount: entry.paragraphCount, wordCount: entry.wordCount,
+                                           pageCount: entry.pageCount)
+        do {
+            if let progress {
+                try seal(progress, with: targetKey).write(to: destination.progressURL(newID), options: .atomic)
+            }
+            let copied = try open(Data(contentsOf: destination.dataURL(newID)), with: targetKey)
+            guard SHA256.hash(data: copied) == SHA256.hash(data: plain),
+                  try destination.catalog().entries.contains(where: { $0.id == newID }) else { throw VaultFailure.badData }
+            if let progress {
+                let copiedProgress = try open(Data(contentsOf: destination.progressURL(newID)), with: targetKey)
+                guard copiedProgress == progress else { throw VaultFailure.badData }
+            }
+        } catch {
+            try? destination.removeFromLibrary(newID)
+            throw error
+        }
+        try removeFromLibrary(id)
+        return newID
     }
     func archiveOtherBooks(keeping id: String, at destination: URL, resetKeptProgress: Bool = false) throws -> Int {
         let entries = try catalog().entries

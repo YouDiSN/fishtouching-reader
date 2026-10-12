@@ -17,10 +17,18 @@ private enum AppDefaults {
     static let displayName = "FishTouching Reader"
     static let iconID = "fish"
 }
+private enum VaultPolicy { static let maximum = 2 }
 
 final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKScriptMessageHandler {
     private var updaterController: SPUStandardUpdaterController?
-    private let vault = Vault()
+    private let primaryVault = Vault()
+    private lazy var vaults: [Vault] = [primaryVault] + (1..<VaultPolicy.maximum).map {
+        Vault(root: primaryVault.root.appendingPathComponent("spaces/\($0 + 1)", isDirectory: true))
+    }
+    private var activeVaultIndex = 0
+    private var vault: Vault { vaults[activeVaultIndex] }
+    private var settingsVaultIndex = 0
+    private var secureResumeVaultIndex = 0
     private let pdfLibrary = PDFLibrary()
     private let textLibrary = TextLibrary()
     private var window: NSWindow!
@@ -47,7 +55,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     private var statusItem: NSStatusItem?
     private let presetIconIDs: Set<String> = ["book", "fish", "night", "leaf", "coffee", "star", "pencil", "music", "sunrise", "cloud"]
     private var displayName: String { UserDefaults.standard.string(forKey: "displayName") ?? AppDefaults.displayName }
-    private var customIconURL: URL { vault.root.appendingPathComponent("appearance-icon.png") }
+    private var customIconURL: URL { primaryVault.root.appendingPathComponent("appearance-icon.png") }
     private var activeIconID: String {
         if let saved = UserDefaults.standard.string(forKey: "appearanceIconID"),
            presetIconIDs.contains(saved) || (saved == "custom" && FileManager.default.fileExists(atPath: customIconURL.path)) {
@@ -111,17 +119,17 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         if !nameRestartScheduled, let pending = UserDefaults.standard.string(forKey: "pendingDisplayName") {
             try? scheduleNameUpdate(pending, reopen: false)
         }
-        vault.lock()
+        vaults.forEach { $0.lock() }
     }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        if sender === settingsWindow { return true }
+        if sender === settingsWindow { settingsWebView?.evaluateJavaScript("document.getElementById('passwordForm')?.reset(); document.getElementById('privateForm')?.reset()", completionHandler: nil); return true }
         hideWindow()
         return false
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         if webView === settingsWebView { sendSettingsState(); return }
-        if vault.needsSetup { send(["type": "setup", "iconID": activeIconID]); return }
+        if primaryVault.needsSetup { send(["type": "setup", "iconID": activeIconID]); return }
         if currentTab == "secure" {
             vault.lock()
             showLocked()
@@ -158,6 +166,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         case "removeBook":
             guard let id = data["id"] as? String else { return }
             removeBook(id, kind: data["kind"] as? String ?? "")
+        case "transferBook":
+            if let id = data["id"] as? String, let password = data["password"] as? String {
+                transferBook(id, password: password)
+            }
         case "progress":
             guard let id = currentBookID,
                   let paragraph = data["paragraph"] as? Int,
@@ -180,8 +192,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
             let progress = try vault.loadProgress(id)
             currentBookID = id
             secureResumeID = id
+            secureResumeVaultIndex = activeVaultIndex
             send(["type": "book", "id": id, "encodedTitle": book.encodedTitle,
-                  "paragraphs": book.paragraphs, "paragraph": progress?.paragraph ?? 0,
+                  "paragraphs": book.paragraphs,
+                  "paragraph": progress?.paragraph ?? 0,
                   "fraction": progress?.fraction ?? 0])
         } catch { sendError(error.localizedDescription, context: "library") }
     }
@@ -211,7 +225,6 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
             }
         } catch { sendError(error.localizedDescription, context: "book") }
     }
-
     @objc private func archiveOtherSecureBooks() {
         guard currentTab == "secure", vault.isUnlocked, let id = currentBookID else { return }
         do {
@@ -219,7 +232,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
             guard let kept = books.first(where: { $0.id == id }) else { return }
             let timestamp = DateFormatter()
             timestamp.dateFormat = "yyyyMMdd-HHmmss"
-            let backups = vault.root.deletingLastPathComponent()
+            let backups = primaryVault.root.deletingLastPathComponent()
                 .appendingPathComponent("FishTouchingReaderBackups", isDirectory: true)
             try FileManager.default.createDirectory(at: backups, withIntermediateDirectories: true,
                                                     attributes: [.posixPermissions: 0o700])
@@ -329,9 +342,30 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     private func unlockSecure(_ password: String) {
         guard currentTab == "secure", !secureTransitioning else { return }
         do {
-            try vault.unlock(password: password)
-            if let id = secureResumeID { showBook(id) } else { sendLibrary() }
-        } catch { showLocked(error.localizedDescription) }
+            vaults.forEach { $0.lock() }
+            guard let index = vaults.firstIndex(where: { $0.matchesPassword(password) }) else { throw VaultFailure.wrongPassword }
+            try vaults[index].unlock(password: password)
+            activeVaultIndex = index
+            if let id = secureResumeID, secureResumeVaultIndex == activeVaultIndex,
+               try vault.list().contains(where: { $0.id == id }) { showBook(id) }
+            else { secureResumeID = nil; sendLibrary() }
+        } catch { vaults.forEach { $0.lock() }; showLocked(error.localizedDescription) }
+    }
+
+    private func transferBook(_ id: String, password: String) {
+        guard currentTab == "secure", vault.isUnlocked else { return }
+        guard let targetIndex = vaults.indices.first(where: { $0 != activeVaultIndex && vaults[$0].matchesPassword(password) }) else {
+            sendError("另一书库密码不正确，或书库尚未创建。", context: "library"); return
+        }
+        let target = vaults[targetIndex]
+        do {
+            try target.unlock(password: password)
+            defer { target.lock() }
+            _ = try vault.transferBook(id, to: target)
+            if secureResumeID == id { secureResumeID = nil }
+            if currentBookID == id { currentBookID = nil }
+            sendLibrary()
+        } catch { sendError(error.localizedDescription, context: "library") }
     }
 
     private func finishSetup(_ data: [String: Any]) {
@@ -355,7 +389,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
                   let icon = NSImage(contentsOf: url), let tiff = icon.tiffRepresentation,
                   let bitmap = NSBitmapImageRep(data: tiff), let png = bitmap.representation(using: .png, properties: [:]) else { return }
             do {
-                try FileManager.default.createDirectory(at: self.vault.root, withIntermediateDirectories: true)
+                try FileManager.default.createDirectory(at: self.primaryVault.root, withIntermediateDirectories: true)
                 try png.write(to: self.customIconURL, options: .atomic)
                 UserDefaults.standard.set("custom", forKey: "appearanceIconID")
                 NSApp.applicationIconImage = NSImage(contentsOf: self.customIconURL) ?? icon
@@ -397,6 +431,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     }
 
     private func showSettings() {
+        settingsVaultIndex = currentTab == "secure" && vault.isUnlocked ? activeVaultIndex : 0
         if let settingsWindow {
             settingsWindow.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -445,7 +480,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         var payload: [String: Any] = ["name": UserDefaults.standard.string(forKey: "pendingDisplayName") ?? displayName,
                                       "icon": settingsIconDataURL(),
                                       "iconID": activeIconID,
-                                      "hasCustomIcon": FileManager.default.fileExists(atPath: customIconURL.path)]
+                                      "hasCustomIcon": FileManager.default.fileExists(atPath: customIconURL.path),
+                                      "passwordScope": settingsVaultIndex == 0 ? "primary" : "private",
+                                      "canCreatePrivate": settingsVaultIndex == 0]
         if let customIcon = customIconDataURL() { payload["customIcon"] = customIcon }
         if let message { payload["message"] = message }
         if let error { payload["error"] = error }
@@ -492,11 +529,30 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
             let new = data["new"] as? String ?? ""
             let confirm = data["confirm"] as? String ?? ""
             guard new == confirm else { sendSettingsState(error: "两次输入的新密码不一致。"); return }
-            let wasLocked = !vault.isUnlocked
+            let target = vaults[settingsVaultIndex]
+            guard !vaults.enumerated().contains(where: { $0.offset != settingsVaultIndex && $0.element.matchesPassword(new) })
+            else { sendSettingsState(error: "不同书库不能使用相同密码。"); return }
+            let wasLocked = !target.isUnlocked
             do {
-                try vault.changePassword(old: old, new: new)
-                if wasLocked { vault.lock() }
+                try target.changePassword(old: old, new: new)
+                if wasLocked { target.lock() }
                 sendSettingsState(message: "密码已更新。")
+            } catch { sendSettingsState(error: error.localizedDescription) }
+        case "createPrivate":
+            guard settingsVaultIndex == 0, let slot = vaults.indices.first(where: { $0 > 0 && !vaults[$0].isConfigured })
+            else { sendSettingsState(error: "书库已达到数量上限。"); return }
+            let primary = data["primary"] as? String ?? ""
+            let password = data["password"] as? String ?? ""
+            let confirm = data["confirm"] as? String ?? ""
+            guard password == confirm else { sendSettingsState(error: "两次输入的新密码不一致。"); return }
+            guard primaryVault.matchesPassword(primary) else { sendSettingsState(error: "当前书库密码不正确。"); return }
+            guard !vaults.contains(where: { $0.matchesPassword(password) }) else {
+                sendSettingsState(error: "不同书库不能使用相同密码。"); return
+            }
+            do {
+                try vaults[slot].configure(password: password)
+                vaults[slot].lock()
+                sendSettingsState(message: "独立书库已创建。锁定后输入新密码即可进入。")
             } catch { sendSettingsState(error: error.localizedDescription) }
         default: break
         }
@@ -547,6 +603,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     }
 
     @objc private func onLostFocus() {
+        if settingsVaultIndex > 0 { settingsWindow?.close() }
         guard window.isVisible, currentTab == "secure", !secureTransitioning else { return }
         if !vault.isUnlocked {
             currentBookID = nil
@@ -564,8 +621,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
 
     private func secureLock(showNormal: Bool = false, openCoverPDF: Bool = false) {
         guard currentTab == "secure", vault.isUnlocked, !secureTransitioning else { return }
+        if settingsVaultIndex > 0 { settingsWindow?.close() }
         secureTransitioning = true
         secureResumeID = currentBookID
+        secureResumeVaultIndex = activeVaultIndex
         if currentPDFIsSecure {
             savePDFProgress()
             stopObservingPDF()
@@ -757,6 +816,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
             currentPDFID = id
             currentBookID = id
             secureResumeID = id
+            secureResumeVaultIndex = activeVaultIndex
             currentPDFIsSecure = true
             pdfBackButton.toolTip = "返回加密书库"
             pdfBackButton.setAccessibilityLabel("返回加密书库")
