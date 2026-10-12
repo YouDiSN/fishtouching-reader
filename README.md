@@ -4,7 +4,7 @@
 
 FishTouching Reader 是一款 macOS 和 Windows 本地阅读器：把工作文档放进「我的书库」，把想私下阅读的内容放进锁图标后的加密书库。加密书库失去焦点时，应用会切回「我的书库」；若正在阅读加密内容，还会移除当前正文，并打开你准备的工作 PDF。回来后输入密码，可以接着上次的位置读。
 
-**[下载 macOS 版](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v1.0.1)** · **[下载 Windows x64 版](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v1.0.1)** · [查看所有版本](https://github.com/YouDiSN/fishtouching-reader/releases)
+**[下载 macOS 版](https://github.com/YouDiSN/fishtouching-reader/releases/latest)** · **[下载 Windows x64 版](https://github.com/YouDiSN/fishtouching-reader/releases/latest)** · [查看所有版本](https://github.com/YouDiSN/fishtouching-reader/releases)
 
 ![虚构素材演示：阅读、切屏、解锁和继续阅读](docs/media/focus-switch-demo.gif)
 
@@ -40,13 +40,13 @@ FishTouching Reader 是一款 macOS 和 Windows 本地阅读器：把工作文�
 
 ## 下载和安装
 
-**macOS：**从 [v1.0.1 Release](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v1.0.1) 下载 macOS 压缩包，解压后将 `FishTouching Reader.app` 拖入“应用程序”文件夹。当前包是 **Apple Silicon** 架构，目标最低版本为 **macOS 13**；目前只在构建机的 macOS 26.6.2 验证过。构建所用 Homebrew `libsodium` 含有针对 macOS 26 构建的对象文件，旧系统兼容性尚未验证。
+**macOS:** Download the DMG from the [latest release](https://github.com/YouDiSN/fishtouching-reader/releases/latest), open it, and drag `FishTouching Reader.app` to Applications. A notarized ZIP is also available. The release is **Apple Silicon (arm64)** with a **macOS 13** deployment target. Homebrew libsodium may target a newer OS; older macOS compatibility has not been verified on real hardware.
 
-The published v1.0.1 macOS package is ad-hoc signed and requires manual approval in macOS Privacy & Security. The upcoming v1.0.2 release pipeline uses Tengjiao Ji's personal Developer ID (`DR4WPFLXBN`), Apple notarization, and a DMG with an Applications shortcut. Only packages produced by the verified Deploy workflow are notarized; local development builds remain ad-hoc signed.
+Starting with v1.0.2, releases use Tengjiao Ji's personal Developer ID (`DR4WPFLXBN`), Apple notarization, and stapled tickets. macOS may still show its normal first-open confirmation. Local development builds remain ad-hoc signed.
 
-Starting with v1.0.2, macOS includes Sparkle update checks and **Check for Updates…** in the app menu. Install the first updater-enabled release manually. See [signing and deployment](docs/macos-signing.md) for setup, validation boundaries, and required CI secrets.
+macOS includes Sparkle update checks and **Check for Updates…** in the app menu. Install the first updater-enabled release manually; v1.0.1 cannot update itself. See [signing and deployment](docs/macos-signing.md) for setup and validation boundaries.
 
-**Windows：**从 [v1.0.1 Release](https://github.com/YouDiSN/fishtouching-reader/releases/tag/v1.0.1) 下载 Windows x64 便携 ZIP，完整解压后运行 `FishTouching Reader.exe`。当前 Windows 包未进行代码签名，SmartScreen 可能提示未知发布者；该版本已在 GitHub Windows runner 上通过阅读、失焦切到 PDF、锁定和恢复的自动测试，尚未在用户 Windows 电脑上人工验收。两个平台目前各有独立书库，不自动同步。详见 [Windows 说明](windows/README.md)。Windows updates remain manual.
+**Windows：**从 [latest Release](https://github.com/YouDiSN/fishtouching-reader/releases/latest) 下载 Windows x64 便携 ZIP，完整解压后运行 `FishTouching Reader.exe`。当前 Windows 包未进行代码签名，SmartScreen 可能提示未知发布者；该版本已在 GitHub Windows runner 上通过阅读、失焦切到 PDF、锁定和恢复的自动测试，尚未在用户 Windows 电脑上人工验收。两个平台目前各有独立书库，不自动同步。详见 [Windows 说明](windows/README.md)。Windows updates remain manual.
 
 ## 构建
 
