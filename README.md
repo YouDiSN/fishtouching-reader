@@ -68,6 +68,44 @@ open dist/*.app
 
 README 演示素材的制作方式见 [`demo/README.md`](demo/README.md)。
 
+## Development and release workflow (for agents)
+
+The release flow is **develop → validate → commit and push → manually run Deploy → verify the published release**. Pushing code does not publish a release. The Windows workflow can run on relevant pushes, but the combined release requires a manual Deploy run.
+
+1. **Develop and validate.** Follow [AGENTS.md](AGENTS.md), preserve existing libraries and reading progress, and use temporary directories or fictional fixtures for tests. Run the macOS checks below; also run the Windows tests when changing Windows or shared UI behavior.
+
+   ```sh
+   swift build -c release
+   .build/release/LocalLibrary --self-test
+   npm test --prefix windows
+   ```
+
+2. **Prepare the release version.** Use a new, increasing `major.minor.patch` version, such as `1.0.3` after `1.0.2`. Update `windows/package.json` and both root-package version entries in `windows/package-lock.json`; do not change dependency versions just to bump the app. The macOS build reads this shared version and writes it to both `CFBundleShortVersionString` and `CFBundleVersion`. Update [release notes](docs/release-notes.md) and any version-specific documentation. Never overwrite an already published version.
+
+3. **Commit and push to the personal repository.** Review the diff, commit the intended changes, and push them to `main` in `YouDiSN/fishtouching-reader`. A request to edit or commit alone is not permission to publish; run the next step when a release is requested.
+
+4. **Run Deploy on `main`.** Use GitHub → Actions → Deploy → Run workflow, or:
+
+   ```sh
+   gh workflow run deploy.yml --ref main --repo YouDiSN/fishtouching-reader
+   ```
+
+   [Deploy](.github/workflows/deploy.yml) signs macOS using **only** `Developer ID Application: Tengjiao Ji (DR4WPFLXBN)`, runs signed-app self-tests, notarizes and staples the app and DMG, and generates the Sparkle feed with signed update archives. The Windows job runs storage tests, Electron smoke tests, packaging, and a packaged-app smoke test. Both jobs must pass before the workflow creates a draft Release, uploads both platforms and checksums, and publishes it as the latest release. It creates the `v<version>` tag at the workflow's commit; no separate manual tag is needed. Never substitute a company certificate or publish an ad-hoc development ZIP as a notarized package.
+
+5. **Verify delivery.** Check the individual `macos`, `windows / windows`, and `publish` job results. Confirm the public Release contains the macOS DMG and notarized ZIP, Windows ZIP, `appcast.xml`, and `SHA256SUMS.txt`. Verify the downloaded macOS artifact's personal Team ID, notarization, and checksums, and check that the live update feed points to the new signed archive. Do not report a pushed commit or a successful build as a completed release. Keep signing credentials in encrypted Actions secrets; see [signing setup](docs/macos-signing.md).
+
+### How users receive macOS updates
+
+Starting with v1.0.2, the running app periodically checks this HTTPS feed through Sparkle:
+
+```text
+https://github.com/YouDiSN/fishtouching-reader/releases/latest/download/appcast.xml
+```
+
+When a newer version is available, Sparkle presents its update UI. The user can accept the update; Sparkle downloads and verifies the archive, replaces the application, and relaunches it. Users can also select **Check for Updates…** in the app menu. This is an application update check, not a push notification while the app is closed. Library data remains in its existing Application Support directory.
+
+Users on v1.0.1 or earlier must manually install an updater-enabled version once. Windows updates remain manual. The v1.0.2 release's signatures, notarization, and live feed were verified, but a complete old-to-new update installation has not yet been tested. For the next release, explicitly verify the `1.0.2 → new version` download, installation, relaunch, and preservation of a temporary test library and reading progress before claiming end-to-end update coverage. Older macOS compatibility also remains unverified on real hardware.
+
 ## 存储和备份
 
 书库数据保存在 `~/Library/Application Support/LocalLibrary/`，不会随仓库或下载包附带。加密书库的文件名为 UUID；书名、来源网址和内容存放在 AES-GCM 加密文件中，主密钥由用户密码通过 Argon2id（随机 salt、64 MiB 内存、3 次计算）派生的密钥包装。目录中不再保存 `vault.key`。「我的书库」位于 `public-pdfs` 和 `public-texts`，不加密。
