@@ -48,13 +48,13 @@ FishTouching Reader 是一款 macOS 和 Windows 本地阅读器，核心是两�
 
 ## 下载和安装
 
-**macOS:** Download the DMG from the [latest release](https://github.com/YouDiSN/fishtouching-reader/releases/latest), open it, and drag `FishTouching Reader.app` to Applications. A notarized ZIP is also available. The release is **Apple Silicon (arm64)** with a **macOS 13** deployment target. Homebrew libsodium may target a newer OS; older macOS compatibility has not been verified on real hardware.
+**macOS：**从[最新版本](https://github.com/YouDiSN/fishtouching-reader/releases/latest)下载 DMG 磁盘映像，打开后将 `FishTouching Reader.app` 拖入“应用程序”文件夹。也可以下载已公证的 ZIP 压缩包。发行包适用于 **Apple Silicon（arm64）**，最低目标系统版本为 **macOS 13**。通过 Homebrew 安装的 libsodium 可能包含面向较新系统构建的对象文件；旧版 macOS 的兼容性尚未经过实机验证。
 
-Starting with v1.0.2, releases use Tengjiao Ji's personal Developer ID (`DR4WPFLXBN`), Apple notarization, and stapled tickets. macOS may still show its normal first-open confirmation. Local development builds remain ad-hoc signed.
+从 v1.0.2 起，发行包使用 Tengjiao Ji 的个人开发者证书（`DR4WPFLXBN`）签名，并经过 Apple 公证和票据装订。macOS 首次打开时仍可能显示常规确认提示。本地开发构建仍使用临时签名。
 
-macOS includes Sparkle update checks and **Check for Updates…** in the app menu. Install the first updater-enabled release manually; v1.0.1 cannot update itself. See [signing and deployment](docs/macos-signing.md) for setup and validation boundaries.
+macOS 版通过 Sparkle 检查更新，也可以在应用菜单中手动检查。首次使用自动更新功能前，需手动安装支持该功能的版本；v1.0.1 无法自行更新。签名配置和验证范围见[签名与发布说明](docs/macos-signing.md)。
 
-**Windows：**从 [latest Release](https://github.com/YouDiSN/fishtouching-reader/releases/latest) 下载 Windows x64 便携 ZIP，完整解压后运行 `FishTouching Reader.exe`。当前 Windows 包未进行代码签名，SmartScreen 可能提示未知发布者；该版本已在 GitHub Windows runner 上通过阅读、失焦切到 PDF、锁定和恢复的自动测试，尚未在用户 Windows 电脑上人工验收。两个平台目前各有独立书库，不自动同步。详见 [Windows 说明](windows/README.md)。Windows updates remain manual.
+**Windows：**从[最新版本](https://github.com/YouDiSN/fishtouching-reader/releases/latest)下载 Windows x64 便携 ZIP，完整解压后运行 `FishTouching Reader.exe`。当前 Windows 包未进行代码签名，SmartScreen 可能提示未知发布者；该版本已在 GitHub 的 Windows 运行环境中通过阅读、失焦切到 PDF、锁定和恢复的自动测试，尚未在用户 Windows 电脑上人工验收。两个平台目前各有独立书库，不自动同步。详见 [Windows 说明](windows/README.md)。Windows 版目前需要手动更新。
 
 ## 构建
 
@@ -76,11 +76,11 @@ open dist/*.app
 
 README 演示素材的制作方式见 [`demo/README.md`](demo/README.md)。
 
-## Development and release workflow (for agents)
+## 开发与发布流程（供开发者参考）
 
-The release flow is **develop → validate → commit and push → manually run Deploy → verify the published release**. Pushing code does not publish a release. The Windows workflow can run on relevant pushes, but the combined release requires a manual Deploy run.
+发布流程为：**开发 → 验证 → 提交并推送 → 手动运行 `Deploy` 工作流 → 验证已发布的版本**。推送代码不会自动发布新版本。相关改动推送后可能触发 Windows 工作流，但包含两个平台的正式发布必须手动运行 `Deploy`。
 
-1. **Develop and validate.** Follow [AGENTS.md](AGENTS.md), preserve existing libraries and reading progress, and use temporary directories or fictional fixtures for tests. Run the macOS checks below; also run the Windows tests when changing Windows or shared UI behavior.
+1. **开发与验证。**遵循 [AGENTS.md](AGENTS.md)，保护现有书库和阅读进度，并使用临时目录或虚构演示素材进行测试。运行下面的 macOS 检查；修改 Windows 版或共用界面行为时，还需运行 Windows 测试。
 
    ```sh
    swift build -c release
@@ -88,31 +88,31 @@ The release flow is **develop → validate → commit and push → manually run 
    npm test --prefix windows
    ```
 
-2. **Prepare the release version.** Use a new, increasing `major.minor.patch` version, such as `1.0.4` after `1.0.3`. Update `windows/package.json` and both root-package version entries in `windows/package-lock.json`; do not change dependency versions just to bump the app. The macOS build reads this shared version and writes it to both `CFBundleShortVersionString` and `CFBundleVersion`. Update [release notes](docs/release-notes.md) and any version-specific documentation. Never overwrite an already published version.
+2. **准备发行版本号。**使用递增的 `major.minor.patch` 版本号，例如在 `1.0.3` 之后使用 `1.0.4`。更新 `windows/package.json` 和 `windows/package-lock.json` 中根项目的两处版本号；不要为了提升应用版本而修改依赖版本。macOS 构建会读取这个共用版本号，并写入 `CFBundleShortVersionString` 和 `CFBundleVersion`。同时更新[版本说明](docs/release-notes.md)及其他涉及版本号的文档。不要覆盖已经发布的版本。
 
-3. **Commit and push to the personal repository.** Review the diff, commit the intended changes, and push them to `main` in `YouDiSN/fishtouching-reader`. A request to edit or commit alone is not permission to publish; run the next step when a release is requested.
+3. **提交并推送到个人仓库。**检查改动，只提交本次计划内的内容，再推送到 `YouDiSN/fishtouching-reader` 的 `main` 分支。仅要求修改或提交代码，不代表要求发布；收到发布请求后再执行下一步。
 
-4. **Run Deploy on `main`.** Use GitHub → Actions → Deploy → Run workflow, or:
+4. **在 `main` 分支运行 `Deploy`。**可以在 GitHub 的 Actions 页面手动运行 `Deploy` 工作流，也可以执行：
 
    ```sh
    gh workflow run deploy.yml --ref main --repo YouDiSN/fishtouching-reader
    ```
 
-   [Deploy](.github/workflows/deploy.yml) signs macOS using **only** `Developer ID Application: Tengjiao Ji (DR4WPFLXBN)`, runs signed-app self-tests, notarizes and staples the app and DMG, and generates the Sparkle feed with signed update archives. The Windows job runs storage tests, Electron smoke tests, packaging, and a packaged-app smoke test. Both jobs must pass before the workflow creates a draft Release, uploads both platforms and checksums, and publishes it as the latest release. It creates the `v<version>` tag at the workflow's commit; no separate manual tag is needed. Never substitute a company certificate or publish an ad-hoc development ZIP as a notarized package.
+   [`Deploy`](.github/workflows/deploy.yml) 仅使用 `Developer ID Application: Tengjiao Ji (DR4WPFLXBN)` 签名 macOS 应用，运行签名后自测，对应用和 DMG 进行公证及票据装订，并生成包含已签名更新包的 Sparkle 更新源。Windows 任务会运行数据层测试、Electron 界面冒烟测试、打包和打包后的冒烟测试。两个平台的任务都通过后，工作流才会创建发行草稿，上传两个平台的下载包和校验文件，并发布为最新版本。版本标签 `v<version>` 会指向运行工作流时的提交，无需手动另打标签。不要使用公司证书，也不要将临时签名的开发 ZIP 当作已公证的发行包发布。
 
-5. **Verify delivery.** Check the individual `macos`, `windows / windows`, and `publish` job results. Confirm the public Release contains the macOS DMG and notarized ZIP, Windows ZIP, `appcast.xml`, and `SHA256SUMS.txt`. Verify the downloaded macOS artifact's personal Team ID, notarization, and checksums, and check that the live update feed points to the new signed archive. Do not report a pushed commit or a successful build as a completed release. Keep signing credentials in encrypted Actions secrets; see [signing setup](docs/macos-signing.md).
+5. **核对发布结果。**分别检查 `macos`、`windows / windows` 和 `publish` 任务。确认公开版本包含 macOS DMG、已公证的 ZIP、Windows ZIP、`appcast.xml` 和 `SHA256SUMS.txt`。下载 macOS 包后核对个人开发者团队标识、公证状态和校验值，并确认线上更新源指向新签名的安装包。推送成功或构建通过都不等于发布完成。签名凭据应保存在加密的 Actions 密钥中；配置方法见[签名说明](docs/macos-signing.md)。
 
-### How users receive macOS updates
+### macOS 用户如何获取更新
 
-Starting with v1.0.2, the running app periodically checks this HTTPS feed through Sparkle:
+从 v1.0.2 起，应用运行时会通过 Sparkle 定期检查以下 HTTPS 更新地址：
 
 ```text
 https://github.com/YouDiSN/fishtouching-reader/releases/latest/download/appcast.xml
 ```
 
-When a newer version is available, Sparkle presents its update UI. The user can accept the update; Sparkle downloads and verifies the archive, replaces the application, and relaunches it. Users can also select **Check for Updates…** in the app menu. This is an application update check, not a push notification while the app is closed. Library data remains in its existing Application Support directory.
+发现新版本后，Sparkle 会显示更新界面。用户确认后，Sparkle 下载并验证更新包、替换应用，再重新启动。用户也可以在应用菜单中手动检查更新。应用关闭时不会收到这类更新通知；书库数据仍保存在原有的“应用程序支持”目录中。
 
-Users on v1.0.1 or earlier must manually install an updater-enabled version once. Windows updates remain manual. The v1.0.2 release's signatures, notarization, and live feed were verified, but a complete old-to-new update installation has not yet been tested. For v1.0.3, explicitly verify the `1.0.2 → 1.0.3` download, installation, relaunch, and preservation of a temporary test library and reading progress before claiming end-to-end update coverage. Older macOS compatibility also remains unverified on real hardware.
+使用 v1.0.1 或更早版本的用户，需要先手动安装一个支持自动更新的版本。Windows 版仍需手动更新。v1.0.2 的签名、公证和线上更新源已经验证，但尚未完整测试从旧版下载安装新版的过程。对于 v1.0.3，只有在验证 `1.0.2 → 1.0.3` 的下载、安装、重启，以及临时测试书库和阅读进度的保留情况后，才能声称自动更新全流程通过。旧版 macOS 的兼容性也尚未经过实机验证。
 
 ## 存储和备份
 
