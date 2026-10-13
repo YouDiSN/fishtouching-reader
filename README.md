@@ -50,7 +50,7 @@ FishTouching Reader 是一款 macOS 和 Windows 本地阅读器，核心是两�
 
 **macOS：**从[最新版本](https://github.com/YouDiSN/fishtouching-reader/releases/latest)下载 DMG 磁盘映像，打开后将 `FishTouching Reader.app` 拖入“应用程序”文件夹。也可以下载已公证的 ZIP 压缩包。发行包适用于 **Apple Silicon（arm64）**，最低目标系统版本为 **macOS 13**。通过 Homebrew 安装的 libsodium 可能包含面向较新系统构建的对象文件；旧版 macOS 的兼容性尚未经过实机验证。
 
-从 v1.0.2 起，发行包使用 Tengjiao Ji 的个人开发者证书（`DR4WPFLXBN`）签名，并经过 Apple 公证和票据装订。macOS 首次打开时仍可能显示常规确认提示。本地开发构建仍使用临时签名。
+从 v1.0.2 起，macOS 发行包使用苹果开发者证书签名并完成公证。首次打开时仍可能出现系统确认提示。
 
 macOS 版通过 Sparkle 检查更新，也可以在应用菜单中手动检查。首次使用自动更新功能前，需手动安装支持该功能的版本；v1.0.1 无法自行更新。签名配置和验证范围见[签名与发布说明](docs/macos-signing.md)。
 
@@ -98,7 +98,7 @@ README 演示素材的制作方式见 [`demo/README.md`](demo/README.md)。
    gh workflow run deploy.yml --ref main --repo YouDiSN/fishtouching-reader
    ```
 
-   [`Deploy`](.github/workflows/deploy.yml) 仅使用 `Developer ID Application: Tengjiao Ji (DR4WPFLXBN)` 签名 macOS 应用，运行签名后自测，对应用和 DMG 进行公证及票据装订，并生成包含已签名更新包的 Sparkle 更新源。Windows 任务会运行数据层测试、Electron 界面冒烟测试、打包和打包后的冒烟测试。两个平台的任务都通过后，工作流才会创建发行草稿，上传两个平台的下载包和校验文件，并发布为最新版本。版本标签 `v<version>` 会指向运行工作流时的提交，无需手动另打标签。不要使用公司证书，也不要将临时签名的开发 ZIP 当作已公证的发行包发布。
+   [`Deploy`](.github/workflows/deploy.yml) 使用个人的苹果开发者证书签名 macOS 应用，运行签名后自测，对应用和 DMG 进行公证及票据装订，并生成包含已签名更新包的 Sparkle 更新源。Windows 任务会运行数据层测试、Electron 界面冒烟测试、打包和打包后的冒烟测试。两个平台的任务都通过后，工作流才会创建发行草稿，上传两个平台的下载包和校验文件，并发布为最新版本。版本标签 `v<version>` 会指向运行工作流时的提交，无需手动另打标签。不要使用公司证书，也不要将临时签名的开发 ZIP 当作已公证的发行包发布。
 
 5. **核对发布结果。**分别检查 `macos`、`windows / windows` 和 `publish` 任务。确认公开版本包含 macOS DMG、已公证的 ZIP、Windows ZIP、`appcast.xml` 和 `SHA256SUMS.txt`。下载 macOS 包后核对个人开发者团队标识、公证状态和校验值，并确认线上更新源指向新签名的安装包。推送成功或构建通过都不等于发布完成。签名凭据应保存在加密的 Actions 密钥中；配置方法见[签名说明](docs/macos-signing.md)。
 
