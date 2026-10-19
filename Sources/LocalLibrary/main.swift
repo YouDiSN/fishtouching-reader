@@ -976,7 +976,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         let bounds = page.bounds(for: pdfView.displayBox)
         let y = pdfView.currentDestination?.point.y ?? bounds.maxY
         let fraction = min(1, max(0, (bounds.maxY - y) / max(1, bounds.height)))
-        pdfPercentLabel.stringValue = String(format: "%.1f%%", 100 * (Double(index) + fraction) / Double(max(1, document.pageCount)))
+        pdfPercentLabel.stringValue = String(format: "%.1f%%", 100.0 * (Double(index) + Double(fraction)) / Double(max(1, document.pageCount)))
     }
 
     @objc private func previousPDFPage() { pdfView.goToPreviousPage(nil); updatePDFNavigation() }
