@@ -73,9 +73,36 @@
   .reader { max-width: 760px; margin: 0 auto; padding: 28px 40px 110px; }
   .reader-text { font-family: "Songti SC", "Noto Serif CJK SC", serif; font-size: var(--font-size, 19px); line-height: 1.95; color: #e5e7dc; }
   .reader-text p { margin: 0 0 1.05em; overflow-wrap: anywhere; }
+  button:disabled { opacity: .4; cursor: default; }
+  [hidden] { display: none !important; }
+  .reader-menu { position: relative; flex-shrink: 0; }
+  .reader-menu summary { cursor: pointer; list-style: none; color: #afc9b9; padding: 9px; border-radius: 8px; }
+  .reader-menu summary::-webkit-details-marker { display: none; }
+  .reader-menu[open] summary { background: #293a33; }
+  .reader-popover { position: absolute; right: 0; top: 46px; width: 190px; padding: 18px; display: grid; gap: 12px; background: #1a2520; border: 1px solid #496153; border-radius: 12px; box-shadow: 0 12px 35px #0006; }
+  .reader-popover label { font-size: 13px; color: #afc9b9; }
+  .reader-popover output { float: right; }
+  .reader-dock { position: fixed; bottom: 0; left: 0; right: 0; z-index: 3; padding: 12px 24px 10px; background: rgba(16,23,22,.98); border-top: 1px solid #34483d; }
+  .reader-nav { display: flex; gap: 14px; align-items: center; max-width: 1000px; margin: auto; }
+  .chapter-current { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .page-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  #percent { min-width: 54px; text-align: right; }
+  .reader-dock .progress-track { max-width: 1000px; margin: 10px auto 0; height: 3px; }
+  .chapter-heading { font-weight: bold; font-size: 1.2em; color: #bfe0c9; }
+  .chapter-dialog { position: fixed; margin: 0; inset: 0 auto 0 0; height: 100dvh; max-height: 100%; width: min(380px,90vw); border: 0; border-right: 1px solid #496153; padding: 24px; background: #17231e; color: #e8eee9; }
+  .chapter-dialog::backdrop { background: #0007; }
+  .chapter-dialog[open] { display: flex; flex-direction: column; gap: 16px; }
+  .chapter-dialog h2 { margin: 0; }
+  #chapterList { overflow: auto; flex: 1; }
+  .chapter-entry { display: block; width: 100%; text-align: left; background: transparent; color: #b9cbbd; line-height: 1.6; margin: 3px 0; }
+  .chapter-entry:hover, .chapter-entry[aria-current="true"] { background: #294136; color: white; }
+  .chapter-entry.volume { font-weight: bold; }
+  .jump-return { position: fixed; bottom: 100px; right: 24px; z-index: 3; box-shadow: 0 4px 20px #0007; }
+  #pageForm label { display: block; margin-bottom: 10px; color: #afc9b9; }
+  @media(max-width:700px) { .reader-head { padding: 10px 12px; gap: 6px; flex-wrap: wrap; } .reader-head .title { flex-basis: 100%; order: 2; } .reader-dock { padding: 10px 12px; } .reader-nav { flex-wrap: wrap; gap: 6px; } .chapter-current { flex-basis: calc(100% - 70px); order: 0; } #percent { order: 1; } .page-controls { order: 2; width: 100%; justify-content: space-between; } .jump-return { bottom: 130px; } }
   .reader-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 40px; }
   .reader-controls { display: flex; align-items: center; gap: 4px; }
-  @media(max-width:700px) { .shell { padding: 24px 18px; } .reader { padding: 18px 24px 80px; } }
+  @media(max-width:700px) { .shell { padding: 24px 18px; } .reader { padding: 18px 24px 160px; } }
 </style>
 </head>
 <body><main id="app"></main><dialog id="removeDialog" class="confirm-dialog" aria-labelledby="removeTitle"><h2 id="removeTitle">确认移除？</h2><p id="removeBookTitle"></p><p class="muted">将从书库移除，并删除应用保存的副本和阅读进度。本地导入的原始文件不会被删除。</p><div class="row"><button type="button" class="secondary" id="cancelRemove">取消</button><button type="button" class="danger" id="confirmRemove">确认移除</button></div></dialog>
@@ -96,6 +123,11 @@ let pendingRemoval = null;
 let pendingTransfer = null;
 let searchQuery = '';
 const chunkSize = 350;
+let chapters = [], jumpOrigin = null, readerEpoch = 0;
+function clearReader() {
+  readerEpoch++; book=null; displayParagraphs=[]; chapters=[]; jumpOrigin=null;
+  clearTimeout(progressTimer); window.onscroll=null;
+}
 function post(action, data={}) { window.webkit?.messageHandlers?.app?.postMessage({action,...data}); }
 function h(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function title(s) { if (!decodeTitles) return s; try { return decodeURIComponent(s); } catch { return s; } }
@@ -124,7 +156,7 @@ function receive(next) {
   if (document.getElementById('transferDialog').open) closeTransferDialog();
   if (next.type==='error') { state = {...state, type:next.context, error:next.message}; }
   else { state=next; }
-  if (state.type!=='book') { book=null; displayParagraphs=[]; clearTimeout(progressTimer); window.onscroll=null; }
+  if (state.type!=='book') { clearReader(); }
   render();
 }
 function tabs(active) { return `<nav class="tabs"><button class="${active==='normal'?'active':''}" id="normalTab">我的</button><button class="icon-tab ${active==='secure'?'active':''}" id="secureTab" aria-label="加密书库" title="加密书库"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></svg></button></nav>`; }
@@ -204,13 +236,12 @@ function renderError() {
   document.getElementById('retry').onclick=()=>post('retry');
 }
 function renderLibrary() {
-  app.innerHTML = `<div class="shell">${globalHeader('secure')}<div class="top"><div><h1>加密书库</h1><div class="muted">已保存 ${state.books?.length||0} 本</div></div><button class="secondary" id="lock">锁定</button></div>
+  app.innerHTML = `<div class="shell">${globalHeader('secure')}<div class="top"><div><h1>加密书库</h1><div class="muted">已保存 ${state.books?.length||0} 本</div></div></div>
     ${state.error ? `<div class="message">${h(state.error)}</div>` : ''}
     <details class="card recent" id="recentBook"${recentOpen('recentBookOpen')}><summary>最近阅读<span class="muted" id="recentBookCount"></span></summary><div class="books" id="recentBooks"></div></details>
     <div class="library-tools"><div class="card import"><h2>添加书籍</h2><button id="importLocal">＋ 添加本地文件</button><div class="muted" style="margin-top:10px">支持 TXT、PDF</div></div>
       <div><div class="top"><h2>全部书籍</h2><div class="row"><label class="muted" for="bookSort">排序</label><select id="bookSort"><option value="recent">最近阅读</option><option value="short">字数：从少到多</option><option value="long">字数：从多到少</option></select><button class="ghost" id="decode">${decodeTitles?'显示编码标题':'显示中文标题'}</button></div></div>
       <input id="search" placeholder="搜索书名或站点"><div class="books" id="books"></div></div></div></div>`;
-  document.getElementById('lock').onclick=()=>post('lock');
   document.getElementById('importLocal').onclick=()=>post('importLocal');
   bindTabs();
   bindRecent('recentBook','recentBookOpen');
@@ -255,72 +286,141 @@ function renderBookItems(books,list,isRecent) {
   }
 }
 function renderBook() {
-  book=state; buildDisplayParagraphs();
-  const savedIndex=Math.max(0,displayParagraphs.findIndex(p=>p.end >= (state.paragraph||0)));
-  chunk=Math.floor(savedIndex/chunkSize);
+  readerEpoch++; book=state; jumpOrigin=null;
+  chapters=detectChapters(book.paragraphs); buildDisplayParagraphs();
+  const saved=Math.max(0,Math.min(book.paragraphs.length-1,book.paragraph||0));
+  chunk=Math.floor(saved/chunkSize);
   app.innerHTML=`<div class="reader-head">${tabs(state.tab||'secure')}<button class="secondary" id="back">书库</button><div class="title">${h(title(state.encodedTitle))}</div>
-      <div class="reader-controls"><button class="ghost" id="layout">${layoutMode==='clean'?'原始排版':'整理排版'}</button><button class="ghost" id="smaller">A−</button><button class="ghost" id="larger">A＋</button></div>
-      ${state.tab==='normal'?'':'<button class="ghost" id="exportTxt">导出 TXT</button><button id="lock">锁定</button>'}${settingsButton()}</div><div class="reader"><div class="muted" id="position"></div><div class="reader-text" id="text"></div>
-      <div class="reader-foot"><button class="secondary" id="prev">上一段</button><span class="muted" id="page"></span><button class="secondary" id="next">下一段</button></div></div>`;
+    <details class="reader-menu" id="readingSettings"><summary>阅读设置</summary><div class="reader-popover"><label>字号 <output id="fontLabel">${fontSize}</output></label><div class="row"><button class="secondary" id="smaller" aria-label="缩小字号">A−</button><button class="secondary" id="larger" aria-label="放大字号">A＋</button></div><label for="layout">正文排版</label><select id="layout"><option value="clean">整理排版</option><option value="raw">原始排版</option></select></div></details>
+    <details class="reader-menu"><summary aria-label="更多操作">···</summary><div class="reader-popover">${state.tab==='normal'?'':`<button class="ghost" id="exportTxt">导出 TXT</button>`}<button class="ghost" id="settings">应用设置</button></div></details></div>
+    <div class="reader"><div class="reader-text" id="text"></div></div>
+    <footer class="reader-dock"><div class="reader-nav"><button class="ghost chapter-current" id="directory" title="打开章节目录">目录</button><div class="page-controls"><button class="secondary" id="prev">上一页</button><button class="ghost" id="page" aria-label="跳转页码"></button><button class="secondary" id="next">下一页</button></div><span class="muted" id="percent">0%</span></div><div class="progress-track" id="readingProgress" role="progressbar" aria-label="整本阅读进度" aria-valuemin="0" aria-valuemax="100"><span></span></div></footer>
+    <button class="secondary jump-return" id="jumpReturn" hidden>返回跳转前位置</button>
+    <dialog class="confirm-dialog" id="pageDialog" aria-labelledby="pageTitle"><h2 id="pageTitle">跳转页码</h2><form id="pageForm"><label for="pageInput">页码（1–${pageCount()}）</label><input id="pageInput" type="number" min="1" max="${pageCount()}" step="1" required><div class="row"><button type="button" class="secondary" id="cancelPage">取消</button><button>跳转</button></div></form></dialog>
+    <dialog class="chapter-dialog" id="chapterDialog" aria-labelledby="chapterTitle"><div class="top"><h2 id="chapterTitle">章节目录</h2><button class="ghost" id="closeChapters" aria-label="关闭目录">关闭</button></div><input id="chapterSearch" placeholder="搜索章节名称或章号" aria-label="搜索章节"><div id="chapterList"></div></dialog>`;
   document.getElementById('back').onclick=()=>{flushProgress();post('library');};
   bindTabs();
-  if(document.getElementById('lock')) document.getElementById('lock').onclick=()=>post('lock');
   if(document.getElementById('exportTxt')) document.getElementById('exportTxt').onclick=()=>post('exportText',{id:state.id});
-  document.getElementById('layout').onclick=()=>{
-    const p=currentProgress(); layoutMode=layoutMode==='clean'?'raw':'clean';localStorage.setItem('layoutMode',layoutMode);
-    book.paragraph=p?.paragraph||0; book.fraction=p?.fraction||0; renderBook();
+  const layout=document.getElementById('layout'); layout.value=layoutMode;
+  layout.onchange=()=>{
+    const position=currentProgress(); layoutMode=layout.value; localStorage.setItem('layoutMode',layoutMode);
+    buildDisplayParagraphs(); showChunk(chunk,position?.paragraph,position?.fraction);
   };
   document.getElementById('smaller').onclick=()=>changeFont(-1);
   document.getElementById('larger').onclick=()=>changeFont(1);
   document.getElementById('prev').onclick=()=>showChunk(chunk-1);
   document.getElementById('next').onclick=()=>showChunk(chunk+1);
-  window.onscroll=()=>{clearTimeout(progressTimer);progressTimer=setTimeout(flushProgress,500);};
-  showChunk(chunk,savedIndex,state.fraction||0);
+  document.getElementById('page').onclick=()=>{const input=document.getElementById('pageInput');input.value=chunk+1;document.getElementById('pageDialog').showModal();input.focus();input.select();};
+  document.getElementById('cancelPage').onclick=()=>document.getElementById('pageDialog').close();
+  document.getElementById('pageForm').onsubmit=e=>{e.preventDefault();const page=Number(document.getElementById('pageInput').value);if(!Number.isInteger(page)||page<1||page>pageCount())return;document.getElementById('pageDialog').close();jumpTo((page-1)*chunkSize);};
+  document.getElementById('directory').onclick=()=>{
+    document.getElementById('chapterSearch').value=''; renderChapters();document.getElementById('chapterDialog').showModal();
+    document.querySelector('#chapterList [aria-current="true"]')?.scrollIntoView({block:'center'});
+  };
+  document.getElementById('closeChapters').onclick=()=>document.getElementById('chapterDialog').close();
+  document.getElementById('chapterSearch').oninput=renderChapters;
+  document.getElementById('jumpReturn').onclick=()=>{const origin=jumpOrigin;jumpOrigin=null;document.getElementById('jumpReturn').hidden=true;if(origin)showChunk(Math.floor(origin.paragraph/chunkSize),origin.paragraph,origin.fraction);};
+  document.querySelectorAll('.reader-menu').forEach(menu=>menu.addEventListener('toggle',()=>{if(menu.open)document.querySelectorAll('.reader-menu').forEach(other=>{if(other!==menu)other.open=false;});}));
+  window.onscroll=()=>{updateReadingStatus();clearTimeout(progressTimer);progressTimer=setTimeout(flushProgress,500);};
+  showChunk(chunk,saved,state.fraction||0);
+}
+function chapterNumber(value) {
+  if (/^[0-9０-９]+$/.test(value)) return Number(value.replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-65248)));
+  const digits={'零':0,'〇':0,'一':1,'二':2,'两':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9};
+  let result=0, current=0;
+  for(const char of value){if(char in digits)current=digits[char];else {result+=(current||1)*({'十':10,'百':100,'千':1000}[char]||0);current=0;}}
+  return result+current;
+}
+function detectChapters(paragraphs) {
+  const candidates=[];let volume='';
+  paragraphs.forEach((text,index)=>{
+    const line=text.trim();if(line.length>80||/[。！？!?；;]/.test(line)||/[.…·]{3,}\s*\d+\s*$/.test(line))return;
+    const match=line.match(/^第\s*([零〇一二两三四五六七八九十百千0-9０-９]+)\s*([章节回卷部篇])(?:\s.*|[：:、.．—-].*|[^\s]{0,30})$/);
+    const special=/^(序章|序言|前言|楔子|引子|尾声|终章|后记|番外)(?:$|[\s：:、—-].*)/.test(line);
+    if(!match&&!special)return;
+    const isVolume=!!match&&/[卷部]/.test(match[2]);if(isVolume)volume=line;
+    candidates.push({title:line,index,volume:isVolume?'':volume,isVolume,number:match?chapterNumber(match[1]):null});
+  });
+  // A front-of-book contents list usually repeats the same headings in the body.
+  const last=new Map();candidates.forEach(c=>last.set(c.volume+'\0'+c.title,c.index));
+  return candidates.filter(c=>last.get(c.volume+'\0'+c.title)===c.index);
+}
+function renderChapters() {
+  const query=document.getElementById('chapterSearch').value.trim().toLowerCase();
+  const number=query.match(/^(?:第\s*)?([零〇一二两三四五六七八九十百千0-9０-９]+)(?:\s*[章节回])?$/);
+  const current=currentProgress()?.paragraph||0;
+  const active=chapters.filter(c=>c.index<=current).at(-1);
+  const list=document.getElementById('chapterList');list.textContent='';
+  const matches=chapters.filter(c=>!query||(c.volume+' '+c.title).toLowerCase().includes(query)||(number&&c.number===chapterNumber(number[1])));
+  if(!matches.length){list.innerHTML=`<p class="muted">${chapters.length?'没有匹配的章节':'未识别到章节，可使用页码跳转。'}</p>`;return;}
+  for(const chapter of matches){const button=document.createElement('button');button.className='chapter-entry'+(chapter.isVolume?' volume':'');button.setAttribute('aria-current',String(chapter===active));button.textContent=(chapter.volume?chapter.volume+' · ':'')+chapter.title;button.onclick=()=>{document.getElementById('chapterDialog').close();jumpTo(chapter.index);};list.append(button);}
 }
 function buildDisplayParagraphs() {
   displayParagraphs=[];
   const stop=/[。！？!?…：:；;”」』）》]$/;
   const marker=/^[（(][一二三四五六七八九十百千0-9]+[）)]$/;
+  const headings=new Set(chapters.map(c=>c.index));
   book.paragraphs.forEach((text,i)=>{
     const last=displayParagraphs.at(-1);
-    if(layoutMode==='clean' && last && !stop.test(last.text) && !marker.test(last.text) && !marker.test(text)) {
+    if(layoutMode==='clean' && last && i%chunkSize!==0 && !headings.has(i) && !headings.has(last.start) && !stop.test(last.text) && !marker.test(last.text) && !marker.test(text)) {
       last.text+=text;last.end=i;
-    } else displayParagraphs.push({text,start:i,end:i});
+    } else displayParagraphs.push({text,start:i,end:i,heading:headings.has(i)});
   });
 }
-function changeFont(delta) { fontSize=Math.max(15,Math.min(30,fontSize+delta));localStorage.setItem('fontSize',fontSize);document.getElementById('text')?.style.setProperty('--font-size',fontSize+'px'); }
-function showChunk(index, paragraph=index*chunkSize, fraction=0) {
+function pageCount(){return Math.max(1,Math.ceil(book.paragraphs.length/chunkSize));}
+function readingTop(){return (document.querySelector('.reader-head')?.getBoundingClientRect().bottom||70)+16;}
+function changeFont(delta) {
+  const position=currentProgress();fontSize=Math.max(15,Math.min(30,fontSize+delta));localStorage.setItem('fontSize',fontSize);
+  document.getElementById('fontLabel').textContent=fontSize;showChunk(chunk,position?.paragraph,position?.fraction);
+}
+function jumpTo(paragraph){jumpOrigin=currentProgress();document.getElementById('jumpReturn').hidden=!jumpOrigin;showChunk(Math.floor(paragraph/chunkSize),paragraph);}
+function showChunk(index, paragraph, fraction=0) {
   if (!book) return;
-  const max=Math.max(0,Math.ceil(displayParagraphs.length/chunkSize)-1);
-  chunk=Math.max(0,Math.min(max,index));
-  const start=chunk*chunkSize, end=Math.min(displayParagraphs.length,start+chunkSize);
+  chunk=Math.max(0,Math.min(pageCount()-1,index));
+  paragraph=paragraph??chunk*chunkSize;
+  const start=chunk*chunkSize, end=Math.min(book.paragraphs.length,start+chunkSize);
   const container=document.getElementById('text'); container.textContent=''; container.style.setProperty('--font-size',fontSize+'px');
   const fragment=document.createDocumentFragment();
-  for(let i=start;i<end;i++){const p=document.createElement('p');p.dataset.index=i;p.textContent=displayParagraphs[i].text;fragment.append(p);}
+  displayParagraphs.forEach((group,i)=>{if(group.start<start||group.start>=end)return;const p=document.createElement('p');p.dataset.index=i;p.textContent=group.text;if(group.heading)p.className='chapter-heading';fragment.append(p);});
+  if(!fragment.childNodes.length){const empty=document.createElement('p');empty.textContent='这本书没有正文。';fragment.append(empty);}
   container.append(fragment);
-  document.getElementById('position').textContent=`原文第 ${displayParagraphs[start].start+1}–${displayParagraphs[end-1].end+1} 段 / 共 ${book.paragraphs.length} 段`;
-  document.getElementById('page').textContent=`${chunk+1} / ${max+1}`;
+  document.getElementById('page').textContent=`第 ${chunk+1} / ${pageCount()} 页 ▾`;
   document.getElementById('prev').disabled=chunk===0;
-  document.getElementById('next').disabled=chunk===max;
+  document.getElementById('next').disabled=chunk===pageCount()-1;
+  const epoch=readerEpoch;
   requestAnimationFrame(()=>{
-    const p=container.querySelector(`[data-index="${paragraph}"]`)||container.firstElementChild;
-    if(p) window.scrollTo(0,Math.max(0,p.getBoundingClientRect().top+window.scrollY-80+p.offsetHeight*fraction));
-    flushProgress();
+    if(!book||readerEpoch!==epoch||!container.isConnected)return;
+    const i=displayParagraphs.findIndex(p=>p.start<=paragraph&&p.end>=paragraph);
+    const p=container.querySelector(`[data-index="${i}"]`)||container.firstElementChild;
+    const group=displayParagraphs[i];
+    const offset=group?(paragraph-group.start+fraction)/(group.end-group.start+1):0;
+    if(p)window.scrollTo(0,Math.max(0,p.getBoundingClientRect().top+window.scrollY-readingTop()+p.offsetHeight*offset));
+    updateReadingStatus();flushProgress();
   });
 }
 function currentProgress() {
   if (!book) return null;
-  const paragraphs=[...document.querySelectorAll('#text p')];
-  let selected=paragraphs[0];
-  for(const p of paragraphs){if(p.getBoundingClientRect().top<=90) selected=p; else break;}
+  const paragraphs=[...document.querySelectorAll('#text p[data-index]')];
+  let selected=paragraphs[0];const top=readingTop();
+  for(const p of paragraphs){if(p.getBoundingClientRect().top<=top) selected=p; else break;}
   if(!selected) return null;
   const rect=selected.getBoundingClientRect();
   const group=displayParagraphs[Number(selected.dataset.index)];
-  const fraction=Math.max(0,Math.min(1,(90-rect.top)/Math.max(1,rect.height)));
-  return {paragraph:group.start+Math.floor(fraction*(group.end-group.start+1)),fraction};
+  const fraction=Math.max(0,Math.min(0.999999,(top-rect.top)/Math.max(1,rect.height)));
+  const offset=fraction*(group.end-group.start+1), whole=Math.floor(offset);
+  return {paragraph:group.start+whole,fraction:offset-whole};
+}
+function updateReadingStatus(){
+  if(!book)return;const p=currentProgress();if(!p)return;
+  const atEnd=chunk===pageCount()-1&&window.scrollY+window.innerHeight>=document.documentElement.scrollHeight-2;
+  const percent=atEnd?100:Math.min(99.9,100*(p.paragraph+p.fraction)/Math.max(1,book.paragraphs.length));
+  document.getElementById('percent').textContent=percent.toFixed(1)+'%';
+  const track=document.getElementById('readingProgress');track.setAttribute('aria-valuenow',percent.toFixed(1));track.firstElementChild.style.width=percent+'%';
+  const chapter=chapters.filter(c=>c.index<=p.paragraph).at(-1);
+  document.getElementById('directory').textContent=chapter?'目录 · '+chapter.title:'目录';
 }
 function flushProgress() { const p=currentProgress(); if(p)post('progress',p); }
-function prepareSecureLock() { if(state.type==='normal'||(state.type==='book'&&state.tab==='normal'))return null;const progress=currentProgress();clearTimeout(progressTimer);book=null;displayParagraphs=[];window.onscroll=null;state={type:'hidden'};app.innerHTML='';return progress; }
+function prepareSecureLock() { if(state.type==='normal'||(state.type==='book'&&state.tab==='normal'))return null;const progress=currentProgress();clearReader();state={type:'hidden'};app.innerHTML='';return progress; }
 </script>
 </body>
 </html>

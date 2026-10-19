@@ -39,6 +39,15 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     private var pdfContainer: NSView!
     private var pdfView: PDFView!
     private var pdfBackButton: NSButton!
+    private var pdfPreviousButton: NSButton!
+    private var pdfNextButton: NSButton!
+    private var pdfPageField: NSTextField!
+    private var pdfPageLabel: NSTextField!
+    private var pdfPercentLabel: NSTextField!
+    private var pdfOutlineButton: NSPopUpButton!
+    private var pdfReturnButton: NSButton!
+    private var pdfJumpOrigin: PDFDestination?
+    private var pdfOutlineDestinations: [PDFDestination] = []
     private var currentPDFID: String?
     private var currentPDFIsCover = false
     private var currentPDFIsSecure = false
@@ -724,8 +733,32 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         viewer.translatesAutoresizingMaskIntoConstraints = false
         viewer.autoScales = true
         viewer.backgroundColor = NSColor(red: 0.06, green: 0.09, blue: 0.08, alpha: 1)
+        let footer = NSStackView()
+        footer.orientation = .horizontal
+        footer.spacing = 10
+        footer.edgeInsets = NSEdgeInsets(top: 10, left: 16, bottom: 10, right: 16)
+        footer.translatesAutoresizingMaskIntoConstraints = false
+        pdfOutlineButton = NSPopUpButton(frame: .zero, pullsDown: false)
+        pdfOutlineButton.target = self
+        pdfOutlineButton.action = #selector(jumpPDFChapter)
+        pdfOutlineButton.setAccessibilityLabel("章节目录")
+        pdfPreviousButton = NSButton(title: "上一页", target: self, action: #selector(previousPDFPage))
+        pdfNextButton = NSButton(title: "下一页", target: self, action: #selector(nextPDFPage))
+        pdfPageField = NSTextField(string: "1")
+        pdfPageField.alignment = .center
+        pdfPageField.target = self
+        pdfPageField.action = #selector(jumpPDFPage)
+        pdfPageField.setAccessibilityLabel("跳转页码，输入后按回车")
+        pdfPageLabel = NSTextField(labelWithString: "/ 1 页")
+        pdfPercentLabel = NSTextField(labelWithString: "0.0%")
+        pdfReturnButton = NSButton(title: "返回跳转前", target: self, action: #selector(returnPDFJump))
+        pdfReturnButton.isHidden = true
+        for control in [pdfOutlineButton!, pdfPreviousButton!, pdfPageField!, pdfPageLabel!, pdfNextButton!, pdfPercentLabel!, pdfReturnButton!] as [NSView] { footer.addArrangedSubview(control) }
+        pdfOutlineButton.widthAnchor.constraint(equalToConstant: 150).isActive = true
+        pdfPageField.widthAnchor.constraint(equalToConstant: 50).isActive = true
         panel.addSubview(bar)
         panel.addSubview(viewer)
+        panel.addSubview(footer)
         NSLayoutConstraint.activate([
             bar.leadingAnchor.constraint(equalTo: panel.leadingAnchor),
             bar.trailingAnchor.constraint(equalTo: panel.trailingAnchor),
@@ -746,7 +779,11 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
             viewer.leadingAnchor.constraint(equalTo: panel.leadingAnchor),
             viewer.trailingAnchor.constraint(equalTo: panel.trailingAnchor),
             viewer.topAnchor.constraint(equalTo: bar.bottomAnchor),
-            viewer.bottomAnchor.constraint(equalTo: panel.bottomAnchor)
+            viewer.bottomAnchor.constraint(equalTo: footer.topAnchor),
+            footer.leadingAnchor.constraint(equalTo: panel.leadingAnchor),
+            footer.trailingAnchor.constraint(equalTo: panel.trailingAnchor),
+            footer.bottomAnchor.constraint(equalTo: panel.bottomAnchor),
+            footer.heightAnchor.constraint(equalToConstant: 54)
         ])
         panel.isHidden = true
         content.addSubview(panel)
@@ -872,6 +909,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     }
 
     private func observePDFProgress() {
+        buildPDFOutline()
+        updatePDFNavigation()
         NotificationCenter.default.addObserver(self, selector: #selector(pdfPositionChanged),
                                                name: .PDFViewPageChanged, object: pdfView)
         if let scrollView = pdfView.documentView?.enclosingScrollView {
@@ -884,6 +923,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     }
 
     private func stopObservingPDF() {
+        pdfJumpOrigin = nil
+        pdfOutlineDestinations.removeAll()
+        pdfOutlineButton?.removeAllItems()
+        pdfReturnButton?.isHidden = true
         pdfProgressWorkItem?.cancel()
         pdfProgressWorkItem = nil
         NotificationCenter.default.removeObserver(self, name: .PDFViewPageChanged, object: pdfView)
@@ -895,10 +938,74 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     }
 
     @objc private func pdfPositionChanged() {
+        updatePDFNavigation()
         pdfProgressWorkItem?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.savePDFProgress() }
         pdfProgressWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
+    }
+
+    private func buildPDFOutline() {
+        pdfOutlineDestinations.removeAll()
+        pdfOutlineButton.removeAllItems()
+        pdfOutlineButton.addItem(withTitle: "章节目录")
+        func append(_ outline: PDFOutline, depth: Int) {
+            for i in 0..<outline.numberOfChildren {
+                guard let child = outline.child(at: i) else { continue }
+                if let destination = child.destination ?? (child.action as? PDFActionGoTo)?.destination {
+                    pdfOutlineDestinations.append(destination)
+                    pdfOutlineButton.addItem(withTitle: String(repeating: "　", count: min(depth, 3)) + (child.label ?? "未命名章节"))
+                    pdfOutlineButton.lastItem?.tag = pdfOutlineDestinations.count
+                }
+                append(child, depth: depth + 1)
+            }
+        }
+        if let root = pdfView.document?.outlineRoot { append(root, depth: 0) }
+        pdfOutlineButton.isEnabled = !pdfOutlineDestinations.isEmpty
+        if pdfOutlineDestinations.isEmpty { pdfOutlineButton.item(at: 0)?.title = "无书签目录" }
+    }
+
+    private func updatePDFNavigation() {
+        guard let document = pdfView?.document, let page = pdfView.currentPage else { return }
+        let index = document.index(for: page)
+        guard index != NSNotFound else { return }
+        if window.firstResponder !== pdfPageField.currentEditor() { pdfPageField.stringValue = String(index + 1) }
+        pdfPageLabel.stringValue = "/ \(document.pageCount) 页"
+        pdfPreviousButton.isEnabled = index > 0
+        pdfNextButton.isEnabled = index + 1 < document.pageCount
+        let bounds = page.bounds(for: pdfView.displayBox)
+        let y = pdfView.currentDestination?.point.y ?? bounds.maxY
+        let fraction = min(1, max(0, (bounds.maxY - y) / max(1, bounds.height)))
+        pdfPercentLabel.stringValue = String(format: "%.1f%%", 100 * (Double(index) + fraction) / Double(max(1, document.pageCount)))
+    }
+
+    @objc private func previousPDFPage() { pdfView.goToPreviousPage(nil); updatePDFNavigation() }
+    @objc private func nextPDFPage() { pdfView.goToNextPage(nil); updatePDFNavigation() }
+    @objc private func jumpPDFPage() {
+        guard let document = pdfView.document,
+              let number = Int(pdfPageField.stringValue), number >= 1, number <= document.pageCount,
+              let page = document.page(at: number - 1) else {
+            NSSound.beep(); window.makeFirstResponder(pdfView); updatePDFNavigation(); return
+        }
+        pdfJumpOrigin = pdfView.currentDestination
+        pdfReturnButton.isHidden = false
+        window.makeFirstResponder(pdfView)
+        pdfView.go(to: page)
+        updatePDFNavigation()
+    }
+    @objc private func jumpPDFChapter() {
+        let tag = pdfOutlineButton.selectedItem?.tag ?? 0
+        guard tag > 0, tag <= pdfOutlineDestinations.count else { return }
+        pdfJumpOrigin = pdfView.currentDestination
+        pdfReturnButton.isHidden = false
+        pdfView.go(to: pdfOutlineDestinations[tag - 1])
+        updatePDFNavigation()
+    }
+    @objc private func returnPDFJump() {
+        if let destination = pdfJumpOrigin { pdfView.go(to: destination) }
+        pdfJumpOrigin = nil
+        pdfReturnButton.isHidden = true
+        updatePDFNavigation()
     }
 
     private func savePDFProgress() {

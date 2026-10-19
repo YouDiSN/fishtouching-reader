@@ -1,4 +1,9 @@
-v1.0.3: The app can hold two separate encrypted libraries, each opened by its own password. Existing libraries keep their original paths and data. Books and reading progress can be moved after the destination password is entered; the source is removed after verification. Password changes affect only the selected library. macOS uses the existing personal Developer ID notarized release flow; Windows remains unsigned.
+v1.0.4：阅读导航更新。
+
+- 常驻上一页、下一页和阅读进度，支持输入页码跳转、返回跳转前的位置。
+- TXT 自动识别章节，支持按章号或名称搜索并跳转；PDF 支持自带书签跳转。
+- 字号和排版收进“阅读设置”，精简顶部操作；移除手动锁定按钮，保留失焦自动锁定。
+- 按原文位置分页，保留现有书库格式和阅读进度。
 
 Personal Developer ID signing, Apple notarization, and macOS automatic updates.
 

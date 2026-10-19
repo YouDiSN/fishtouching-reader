@@ -43,6 +43,7 @@ submission="$stage/notarization.zip"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName FishTouching Reader' "$release_app/Contents/Info.plist"
 ./scripts/sign-app.sh "$release_app"
 "$release_app/Contents/MacOS/LocalLibrary" --self-test
+/usr/bin/python3 scripts/check-release-privacy.py --app "$release_app"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$release_app"
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$release_app" "$submission"
 /usr/bin/xcrun notarytool submit "$submission" --keychain-profile "$profile" "${keychain_args[@]}" --wait --output-format json > "$stage/notary-result.json"

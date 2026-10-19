@@ -103,6 +103,7 @@ jobs:
           test -f "release/FishTouching-Reader-Windows-x64-v$version.zip"
           test -f "release/fishtouching-reader-macos-arm64-v$version.dmg"
           test -f release/appcast.xml
+          python3 scripts/check-release-privacy.py release/*.zip
           cd release
           sha256sum *.dmg *.zip appcast.xml > SHA256SUMS.txt
           gh release create "v$version" --target "$GITHUB_SHA" --title "v$version" --draft --notes-file ../docs/release-notes.md *.dmg *.zip appcast.xml SHA256SUMS.txt
