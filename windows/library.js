@@ -38,12 +38,39 @@ class PublicLibrary {
     writeAtomic(this.catalogPath, JSON.stringify({ entries }));
     return entry;
   }
+  addPDF(title, data) {
+    const entry = { id: crypto.randomUUID(), title, kind: 'pdf', importedAt: Date.now(), count: 0, wordCount: 0, pageCount: 0, progress: null };
+    fs.mkdirSync(this.dataDir, { recursive: true });
+    writeAtomic(this.file(entry), data);
+    const entries = this.list(); entries.push(entry);
+    writeAtomic(this.catalogPath, JSON.stringify({ entries }));
+    return entry;
+  }
+  addText(title, parts) {
+    if (!parts.length) throw new Error('书籍没有可阅读的正文。');
+    const id = crypto.randomUUID();
+    const entry = { id, title, kind: 'text', importedAt: Date.now(), count: parts.length,
+      wordCount: words(parts), pageCount: 0, progress: null };
+    fs.mkdirSync(this.dataDir, { recursive: true });
+    writeAtomic(this.file(entry), parts.join('\n'));
+    const entries = this.list(); entries.push(entry);
+    writeAtomic(this.catalogPath, JSON.stringify({ entries }));
+    return entry;
+  }
   load(entry) { return fs.readFileSync(this.file(entry)); }
   update(id, values) {
     const entries = this.list();
     const entry = entries.find(e => e.id === id);
     if (!entry) throw new Error('找不到这本书。');
     Object.assign(entry, values);
+    writeAtomic(this.catalogPath, JSON.stringify({ entries }));
+  }
+  hideFromRecent(id) {
+    const entries = this.list();
+    const entry = entries.find(e => e.id === id);
+    if (!entry) throw new Error('找不到这本书。');
+    if (!entry.progress) return;
+    entry.progress.recentHidden = true;
     writeAtomic(this.catalogPath, JSON.stringify({ entries }));
   }
   remove(id) {

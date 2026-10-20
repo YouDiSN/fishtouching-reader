@@ -103,6 +103,14 @@ class Vault {
     entry.progress = { ...value, updatedAt: Date.now() };
     this._writeCatalog(catalog);
   }
+  hideFromRecent(id) {
+    const catalog = this._catalog();
+    const entry = catalog.entries.find(e => e.id === id);
+    if (!entry) throw new Error('找不到这本书。');
+    if (!entry.progress) return;
+    entry.progress.recentHidden = true;
+    this._writeCatalog(catalog);
+  }
   update(id, values) {
     const catalog = this._catalog();
     const entry = catalog.entries.find(e => e.id === id);

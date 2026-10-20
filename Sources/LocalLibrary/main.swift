@@ -1,3 +1,4 @@
+import CryptoKit
 import AppKit
 import WebKit
 import Carbon
@@ -31,8 +32,12 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     private var secureResumeVaultIndex = 0
     private let pdfLibrary = PDFLibrary()
     private let textLibrary = TextLibrary()
+    private let importPlugins = ImportPluginRegistry()
+    private var webJob: WebDownloadJob?
+    private var webPreview: [String:Any]?
     private var window: NSWindow!
     private var webView: WKWebView!
+    private var aboutWindowController: AboutWindowController?
     private var settingsWindow: NSWindow?
     private var settingsWebView: WKWebView?
     private var nameRestartScheduled = false
@@ -149,7 +154,12 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
                                didReceive message: WKScriptMessage) {
         guard let data = message.body as? [String: Any], let action = data["action"] as? String else { return }
         if message.name == "settings" { handleSettingsAction(action, data: data); return }
+        if ["selectNormal", "selectSecure", "unlock", "lock", "settings", "read", "openPDF", "library", "toggleImportPlugin", "removeImportPlugin"].contains(action) { cancelWebImport() }
         switch action {
+        case "installWebPlugin": installWebPlugin(data)
+        case "previewWebsite": previewWebsite(data)
+        case "importWebsite": importWebsite(data)
+        case "cancelWebImport": cancelWebImport()
         case "retry": currentTab == "secure" ? showLocked() : showNormalLibrary()
         case "selectNormal": selectNormal()
         case "selectSecure": selectSecure()
@@ -158,6 +168,12 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         case "settings": showSettings()
         case "chooseIcon": chooseIcon()
         case "selectIcon": choosePresetIcon(data["id"] as? String ?? "")
+        case "listImportPlugins": sendImportPlugins()
+        case "installImportPlugin": installImportPlugin()
+        case "toggleImportPlugin":
+            do { try importPlugins.setEnabled(data["id"] as? String ?? "", enabled: data["enabled"] as? Bool ?? false); sendImportPlugins() }
+            catch { sendImportPlugins(error: error.localizedDescription) }
+        case "removeImportPlugin": removeImportPlugin(data["id"] as? String ?? "")
         case "importLocal": importLocal()
         case "lock": secureLock()
         case "importPDF": importLocal()
@@ -172,9 +188,14 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
             if currentTab == "secure" { showBook(id) } else { showNormalText(id) }
         case "exportText":
             if let id = data["id"] as? String { exportText(id) }
+        case "exportEPUB":
+            if let id = data["id"] as? String { exportEPUB(id) }
         case "removeBook":
             guard let id = data["id"] as? String else { return }
             removeBook(id, kind: data["kind"] as? String ?? "")
+        case "removeRecent":
+            guard let id = data["id"] as? String else { return }
+            removeRecent(id, kind: data["kind"] as? String ?? "")
         case "transferBook":
             if let id = data["id"] as? String, let password = data["password"] as? String {
                 transferBook(id, password: password)
@@ -203,7 +224,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
             secureResumeID = id
             secureResumeVaultIndex = activeVaultIndex
             send(["type": "book", "id": id, "encodedTitle": book.encodedTitle,
-                  "paragraphs": book.paragraphs,
+                  "paragraphs": book.paragraphs, "hasEPUB": book.epubArchive != nil,
                   "paragraph": progress?.paragraph ?? 0,
                   "fraction": progress?.fraction ?? 0])
         } catch { sendError(error.localizedDescription, context: "library") }
@@ -234,6 +255,30 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
             }
         } catch { sendError(error.localizedDescription, context: "book") }
     }
+    private func exportEPUB(_ id: String) {
+        guard currentTab == "secure", vault.isUnlocked, currentBookID == id else { return }
+        do {
+            let book = try vault.load(id)
+            guard book.epubArchive != nil else { return }
+            let title = book.originalTitle.replacingOccurrences(of: "/", with: "-")
+                .replacingOccurrences(of: ":", with: "-")
+                .components(separatedBy: .newlines).joined(separator: " ")
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [UTType(filenameExtension: "epub") ?? .data]
+            panel.nameFieldStringValue = "\(title).epub"
+            panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+            panel.beginSheetModal(for: window) { [weak self] response in
+                guard let self, response == .OK, let url = panel.url,
+                      self.currentTab == "secure", self.vault.isUnlocked,
+                      self.currentBookID == id else { return }
+                do {
+                    guard let archive = try self.vault.load(id).epubArchive else { throw VaultFailure.badData }
+                    try archive.write(to: url, options: .atomic)
+                } catch { self.sendError(error.localizedDescription, context: "book") }
+            }
+        } catch { sendError(error.localizedDescription, context: "book") }
+    }
+
     @objc private func archiveOtherSecureBooks() {
         guard currentTab == "secure", vault.isUnlocked, let id = currentBookID else { return }
         do {
@@ -277,7 +322,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
                  "kind": item.kind, "pageCount": item.pageCount,
                  "paragraph": item.kind == "pdf" ? (pdfProgress?.pageIndex ?? 0) : (item.progress?.paragraph ?? 0),
                  "fraction": item.kind == "pdf" ? (pdfProgress?.fraction ?? 0) : (item.progress?.fraction ?? 0),
-                 "updatedAt": item.kind == "pdf" ? (pdfProgress?.updatedAt?.timeIntervalSince1970 ?? 0) : (item.progress?.updatedAt.timeIntervalSince1970 ?? 0)]
+                 "updatedAt": item.kind == "pdf" ? (pdfProgress?.updatedAt?.timeIntervalSince1970 ?? 0) : (item.progress?.updatedAt.timeIntervalSince1970 ?? 0),
+                 "recentHidden": item.kind == "pdf" ? (pdfProgress?.recentHidden ?? false) : (item.progress?.recentHidden ?? false)]
             }
             send(["type": "library", "books": books,
                   "hotKeyAvailable": hotKeyRegistrationStatus == noErr])
@@ -302,6 +348,21 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         } catch { sendError(error.localizedDescription, context: currentTab == "secure" ? "library" : "normal") }
     }
 
+    private func removeRecent(_ id: String, kind: String) {
+        do {
+            if currentTab == "secure" {
+                guard vault.isUnlocked else { return }
+                try vault.hideFromRecent(id)
+                sendLibrary()
+            } else {
+                if kind == "pdf" { try pdfLibrary.hideFromRecent(id) }
+                else if kind == "text" { try textLibrary.hideFromRecent(id) }
+                else { return }
+                showNormalLibrary()
+            }
+        } catch { sendError(error.localizedDescription, context: currentTab == "secure" ? "library" : "normal") }
+    }
+
     private func showNormalLibrary(completion: (() -> Void)? = nil) {
         currentTab = "normal"
         do {
@@ -311,14 +372,16 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
                  "pageCount": item.pageCount,
                  "pageIndex": item.progress?.pageIndex ?? 0,
                  "pageFraction": item.progress?.fraction ?? 0,
-                 "updatedAt": item.progress?.updatedAt?.timeIntervalSince1970 ?? 0]
+                 "updatedAt": item.progress?.updatedAt?.timeIntervalSince1970 ?? 0,
+                 "recentHidden": item.progress?.recentHidden ?? false]
             }
             for item in try textLibrary.list() {
                 let progress = try textLibrary.progress(item.id)
                 pdfs.append(["id": item.id, "title": item.title, "kind": "text",
                              "pageCount": item.paragraphCount, "pageIndex": progress?.paragraph ?? 0,
                              "pageFraction": progress?.fraction ?? 0,
-                             "updatedAt": progress?.updatedAt.timeIntervalSince1970 ?? 0])
+                             "updatedAt": progress?.updatedAt.timeIntervalSince1970 ?? 0,
+                             "recentHidden": progress?.recentHidden ?? false])
             }
             send(["type": "normal", "pdfs": pdfs], completion: completion)
         } catch {
@@ -612,6 +675,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     }
 
     @objc private func onLostFocus() {
+        cancelWebImport()
+        sendWeb(["error":"任务因窗口失焦已取消，请重新预览。", "reset":true])
         if settingsVaultIndex > 0 { settingsWindow?.close() }
         guard window.isVisible, currentTab == "secure", !secureTransitioning else { return }
         if !vault.isUnlocked {
@@ -791,33 +856,177 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         pdfView = viewer
     }
 
-    private func importLocal() {
-        guard currentTab == "normal" || vault.isUnlocked else { return }
+    private func sendImportPlugins(error: String? = nil, message: String? = nil) {
+        var payload: [String: Any] = [:]
+        do { payload["plugins"] = try importPlugins.views() }
+        catch { payload["error"] = "无法读取插件配置：" + error.localizedDescription }
+        if let error { payload["error"] = error }
+        if let message { payload["message"] = message }
+        guard let data = try? JSONSerialization.data(withJSONObject: payload), let json = String(data: data, encoding: .utf8) else { return }
+        webView.evaluateJavaScript("receiveImportPlugins(\(json))", completionHandler: nil)
+    }
+
+    private func installImportPlugin() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.pdf, .plainText]
-        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.json, .zip]
         panel.canChooseDirectories = false
         panel.beginSheetModal(for: window) { [weak self] response in
             guard let self, response == .OK, let url = panel.url else { return }
             do {
-                if self.currentTab == "secure" {
-                    let data = try Data(contentsOf: url)
-                    if url.pathExtension.lowercased() == "pdf" {
-                        guard let pdf = PDFDocument(data: data) else { throw VaultFailure.badData }
-                        _ = try self.vault.savePDF(data: data, title: url.deletingPathExtension().lastPathComponent, pageCount: pdf.pageCount)
-                    } else {
-                        guard let text = PlainTextDecoder.decode(data) else { throw VaultFailure.badData }
-                        let paragraphs = text.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-                        _ = try self.vault.saveText(title: url.deletingPathExtension().lastPathComponent, paragraphs: paragraphs, sourceURL: "")
-                    }
-                    self.sendLibrary()
-                } else if url.pathExtension.lowercased() == "pdf" {
-                    try self.pdfLibrary.importFile(url); self.showNormalLibrary()
-                } else {
-                    try self.importNormalText(url)
+                guard let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 262_144 else {
+                    throw ImportPluginError(message: "插件包不能超过 256 KB。")
                 }
-            } catch { self.sendError(error.localizedDescription, context: self.currentTab == "secure" ? "library" : "normal") }
+                let plugin = try WebPluginRuntime.manifest(Data(contentsOf: url))
+                self.confirmPlugin(plugin, source: url.lastPathComponent)
+            } catch { self.sendImportPlugins(error: error.localizedDescription) }
         }
+    }
+
+    private func removeImportPlugin(_ id: String) {
+        let alert = NSAlert()
+        alert.messageText = "移除这个社区插件？"
+        alert.informativeText = "已导入的书籍和阅读进度会保留。"
+        alert.addButton(withTitle: "移除")
+        alert.addButton(withTitle: "取消")
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self, response == .alertFirstButtonReturn else { return }
+            do { try self.importPlugins.remove(id); self.sendImportPlugins(message: "插件已移除，书籍保持不变。") }
+            catch { self.sendImportPlugins(error: error.localizedDescription) }
+        }
+    }
+
+    private func cancelWebImport() { webJob?.cancel(); webJob=nil; webPreview=nil }
+    private func sendWeb(_ payload:[String:Any]) {
+        guard let data=try? JSONSerialization.data(withJSONObject:payload), let json=String(data:data,encoding:.utf8) else{return}
+        webView.evaluateJavaScript("receiveWebImport(\(json))",completionHandler:nil)
+    }
+    private func confirmPlugin(_ plugin:ImportPluginDefinition, source:String) {
+        let alert=NSAlert(); alert.messageText="安装社区插件“\(plugin.name)”？"
+        let domains = (try? WebPluginRuntime.call("hosts", [plugin.adapter ?? ""])) as? String ?? ""
+        let permission=plugin.parser == "website" ? "仅访问 \(domains)；番茄另需访问 lf6-awef.bytetos.com 校验公开字体。Fake-IP 时使用 Cloudflare 加密 DNS，仅发送域名。不运行网页脚本。" : "仅读取你选择的本地文本文件。"
+        alert.informativeText="来源：\(source)\n作者：\(plugin.author)（未经认证）\n版本：\(plugin.version)\n权限：\(permission)\n同标识插件将被更新；安装后默认停用。"
+        alert.addButton(withTitle:"安装");alert.addButton(withTitle:"取消")
+        alert.beginSheetModal(for:window) { [weak self] response in
+            guard let self,response == .alertFirstButtonReturn else{return}
+            do {try self.importPlugins.install(plugin);self.sendImportPlugins(message:"社区插件已安装，请启用后使用。")}
+            catch {self.sendImportPlugins(error:error.localizedDescription)}
+        }
+    }
+    private func installWebPlugin(_ data:[String:Any]) {
+        do {
+            if let id=data["recommended"] as? String {
+                guard let p=try WebPluginRuntime.recommended().first(where:{$0.id==id}) else{return}
+                confirmPlugin(p,source:"应用随附的实验性社区规则（非网站官方）");return
+            }
+            let raw=data["url"] as? String ?? "", job=WebDownloadJob()
+            cancelWebImport();webJob=job
+            DispatchQueue.global(qos:.userInitiated).async { [weak self] in
+                do {let p=try WebPluginRuntime.manifest(job.fetch(raw,limit:262144));DispatchQueue.main.async {guard let self,self.webJob === job else{return};self.webJob=nil;self.confirmPlugin(p,source:raw)}}
+                catch {let message=error.localizedDescription;DispatchQueue.main.async {guard let self,self.webJob === job else{return};self.webJob=nil;self.sendImportPlugins(error:message)}}
+            }
+        } catch {sendImportPlugins(error:error.localizedDescription)}
+    }
+    private func previewWebsite(_ data:[String:Any]) {
+        cancelWebImport()
+        guard currentTab == "normal" || vault.isUnlocked else{return}
+        do {
+            let p=try importPlugins.website(data["id"] as? String ?? ""), raw=data["url"] as? String ?? ""
+            _ = try WebPluginRuntime.call("checkURL",[p.adapter!,raw,"book"])
+            let job=WebDownloadJob(); webJob=job
+            DispatchQueue.global(qos:.userInitiated).async { [weak self] in
+                do {
+                    let bytes=try job.fetch(raw), html=String(decoding:bytes,as:UTF8.self)
+                    let catalogURL = try WebPluginRuntime.call("catalogRequest", [p.adapter!, raw]) as? String ?? ""
+                    let catalogJSON = catalogURL.isEmpty ? "" : String(decoding:try job.fetch(catalogURL),as:UTF8.self)
+                    guard var preview=try WebPluginRuntime.call("catalog",[p.adapter!,raw,html,catalogJSON]) as? [String:Any] else{return}
+                    preview["pluginID"]=p.id;preview["source"]=raw
+                    DispatchQueue.main.async {guard let self,self.webJob === job else{return};self.webJob=nil;self.webPreview=preview;self.sendWeb(["preview":preview])}
+                } catch {let message=error.localizedDescription;DispatchQueue.main.async {guard let self,self.webJob === job else{return};self.webJob=nil;self.sendWeb(["error":message])}}
+            }
+        } catch {sendWeb(["error":error.localizedDescription])}
+    }
+    private func importWebsite(_ data:[String:Any]) {
+        guard webJob == nil, let preview=webPreview, let chapters=preview["chapters"] as? [[String:String]], currentTab == "normal" || vault.isUnlocked else{return}
+        do {
+            let p=try importPlugins.website(preview["pluginID"] as? String ?? "")
+            let start=data["start"] as? Int ?? 0,end=data["end"] as? Int ?? 0
+            guard start>=1,end>=start,end<=chapters.count,end-start<100 else{throw ImportPluginError(message:"每次请选择有效的 1–100 章范围。")}
+            let chosen=Array(chapters[(start-1)..<end]), secure=currentTab == "secure", slot=activeVaultIndex, job=WebDownloadJob()
+            let title="\(preview["title"] as? String ?? "网络书籍")（目录第\(start)–\(end)项）"
+            webJob=job;webPreview=nil
+            DispatchQueue.global(qos:.userInitiated).async { [weak self] in
+                do {
+                    var paragraphs=[String](), size=0
+                    var fontDigests=[String:String]()
+                    for (i,c) in chosen.enumerated() {
+                        try job.check();if i>0 {Thread.sleep(forTimeInterval:1)};try job.check()
+                        _ = try WebPluginRuntime.call("checkURL",[p.adapter!,c["url"]!,"chapter"])
+                        let bytes=try job.fetch(c["url"]!);size+=bytes.count
+                        guard size<=16*1024*1024 else{throw ImportPluginError(message:"本次导入超过 16 MB 限制。")}
+                        let html=String(decoding:bytes,as:UTF8.self)
+                        let fontURL=try WebPluginRuntime.call("fontRequest",[p.adapter!,html]) as? String ?? ""
+                        if !fontURL.isEmpty, fontDigests[fontURL] == nil {
+                            let font=try job.fetch(fontURL,limit:524288)
+                            fontDigests[fontURL]=SHA256.hash(data:font).map{String(format:"%02x",$0)}.joined()
+                        }
+                        let parts=try WebPluginRuntime.call("chapter",[p.adapter!,html,fontDigests[fontURL] ?? ""]) as? [String] ?? []
+                        paragraphs += [c["title"]!] + parts
+                        DispatchQueue.main.async {guard let self,self.webJob === job else{return};self.sendWeb(["message":"已验证 \(i+1)/\(chosen.count) 章…"])}
+                    }
+                    let content=paragraphs
+                    DispatchQueue.main.async {
+                        guard let self,self.webJob === job else{return};self.webJob=nil
+                        do {
+                            guard (self.currentTab == "secure")==secure,!secure || (self.activeVaultIndex==slot && self.vault.isUnlocked) else{throw ImportPluginError(message:"目标书库已切换或锁定。")}
+                            _ = try self.importPlugins.website(p.id)
+                            if secure {_ = try self.vault.saveText(title:title,paragraphs:content,sourceURL:preview["source"] as? String ?? "")}
+                            else {try self.textLibrary.importParagraphs(content,title:title)}
+                            if secure {self.sendLibrary()} else{self.showNormalLibrary()}
+                        } catch {self.sendWeb(["error":error.localizedDescription])}
+                    }
+                } catch {let message=error.localizedDescription;DispatchQueue.main.async {guard let self,self.webJob === job else{return};self.webJob=nil;self.sendWeb(["error":"未保存本次导入："+message])}}
+            }
+        } catch {sendWeb(["error":error.localizedDescription])}
+    }
+
+    private func importLocal() {
+        guard currentTab == "normal" || vault.isUnlocked else { return }
+        do {
+            let extensions = try importPlugins.enabledExtensions()
+            guard !extensions.isEmpty else { throw ImportPluginError(message: "没有已启用的导入插件，请先在“导入插件”中启用。") }
+            let secure = currentTab == "secure", targetIndex = activeVaultIndex
+            let panel = NSOpenPanel()
+            panel.allowedContentTypes = extensions.compactMap { UTType(filenameExtension: $0) }
+            // Unknown community suffixes may not have a registered UTType; the registry still validates every chosen file.
+            panel.allowsOtherFileTypes = extensions.contains { UTType(filenameExtension: $0) == nil }
+            panel.allowsMultipleSelection = true
+            panel.canChooseDirectories = false
+            panel.beginSheetModal(for: window) { [weak self] response in
+                guard let self, response == .OK, !panel.urls.isEmpty else { return }
+                var imported = 0
+                do {
+                    guard (self.currentTab == "secure") == secure, !secure || (self.activeVaultIndex == targetIndex && self.vault.isUnlocked) else {
+                        throw ImportPluginError(message: "目标书库已切换或锁定，请重新导入。")
+                    }
+                    for url in panel.urls {
+                        let content = try self.importPlugins.parse(url)
+                        if let data = content.pdfData {
+                            if secure { _ = try self.vault.savePDF(data: data, title: content.title, pageCount: content.pageCount) }
+                            else { _ = try self.pdfLibrary.importData(data, title: content.title, pageCount: content.pageCount) }
+                        } else if secure {
+                            _ = try self.vault.saveText(title: content.title, paragraphs: content.paragraphs, sourceURL: "", epubArchive: content.epubArchive)
+                        } else {
+                            try self.textLibrary.importParagraphs(content.paragraphs, title: content.title)
+                        }
+                        imported += 1
+                    }
+                    if secure { self.sendLibrary() } else { self.showNormalLibrary() }
+                } catch {
+                    if secure { self.sendLibrary() } else { self.showNormalLibrary() }
+                    self.sendError("已导入 \(imported) 个文件。" + error.localizedDescription, context: secure ? "library" : "normal")
+                }
+            }
+        } catch { sendError(error.localizedDescription, context: currentTab == "secure" ? "library" : "normal") }
     }
     private func importNormalText(_ url: URL) throws {
         try textLibrary.importFile(url)
@@ -1030,6 +1239,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         let appItem = NSMenuItem()
         appItem.title = displayName
         let appMenu = NSMenu()
+        let about = appMenu.addItem(withTitle: "关于 FishTouching Reader…", action: #selector(menuAbout), keyEquivalent: "")
+        about.target = self
+        appMenu.addItem(NSMenuItem.separator())
         appMenu.addItem(withTitle: "显示书库", action: #selector(menuShow), keyEquivalent: "")
         appMenu.addItem(withTitle: "隐藏书库", action: #selector(menuHide), keyEquivalent: "")
         let settings = appMenu.addItem(withTitle: "设置…", action: #selector(menuSettings), keyEquivalent: ",")
@@ -1062,10 +1274,17 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         let settings = menu.addItem(withTitle: "设置…", action: #selector(menuSettings), keyEquivalent: ",")
         settings.target = self
         settings.keyEquivalentModifierMask = [.command]
+        let about = menu.addItem(withTitle: "关于 FishTouching Reader…", action: #selector(menuAbout), keyEquivalent: "")
+        about.target = self
         menu.addItem(NSMenuItem.separator())
         menu.addItem(withTitle: "退出 \(displayName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
         item.menu = menu
         statusItem = item
+    }
+
+    @objc private func menuAbout() {
+        if aboutWindowController == nil { aboutWindowController = AboutWindowController() }
+        aboutWindowController?.present()
     }
 
     @objc private func menuShow() { showWindow() }

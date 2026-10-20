@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "community.markdown-text",
+  "name": "Markdown 纯文本",
+  "version": "1.0.0",
+  "author": "示例作者（未经官方认证）",
+  "description": "将 .md 文件作为纯文本导入，不执行 HTML、脚本或加载远程图片。",
+  "extensions": ["md"],
+  "parser": "txt"
+}

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 2,
+  "id": "community.qimao",
+  "name": "七猫书源",
+  "version": "1.1.0",
+  "author": "YouDiSN",
+  "description": "非网站官方。读取公开目录及页面内的正文数据；只导入目录明确标记免费的章节。",
+  "extensions": [],
+  "parser": "website",
+  "adapter": "qimao"
+}

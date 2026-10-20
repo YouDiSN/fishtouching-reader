@@ -6,6 +6,29 @@ const os = require('node:os');
 const path = require('node:path');
 const { Vault } = require('../vault');
 const { PublicLibrary, paragraphs } = require('../library');
+const { paragraphsFromEPUB } = require('../epub');
+const { zipSync, strToU8 } = require('fflate');
+
+test('EPUB follows spine order and imports as encrypted text', t => {
+  const root = temporary(t);
+  const file = path.join(root, '虚构短篇.epub');
+  const archive = {
+    'META-INF/container.xml': strToU8('<container><rootfiles><rootfile full-path="OEBPS/content.opf"/></rootfiles></container>'),
+    'OEBPS/content.opf': strToU8('<package><manifest><item id="b" href="b.xhtml"/><item id="a" href="a.xhtml"/></manifest><spine><itemref idref="a"/><itemref idref="b"/></spine></package>'),
+    'OEBPS/a.xhtml': strToU8('<html><body><h1>第一章</h1><p>窗边的橘猫。</p></body></html>'),
+    'OEBPS/b.xhtml': strToU8('<html><body><p>午后的办公室很安静。</p></body></html>')
+  };
+  fs.writeFileSync(file, zipSync(archive));
+  const parts = paragraphsFromEPUB(file);
+  assert.deepEqual(parts, ['第一章', '窗边的橘猫。', '午后的办公室很安静。']);
+  const vault = new Vault(path.join(root, 'vault'));
+  vault.configure('4321');
+  const entry = vault.add({ title: '虚构短篇', kind: 'text', data: Buffer.from(JSON.stringify({ paragraphs: parts, epubArchive: fs.readFileSync(file).toString('base64') })), paragraphs: parts });
+  assert.equal(fs.readFileSync(path.join(vault.dataDir, `${entry.id}.bin`)).includes(Buffer.from('橘猫')), false);
+  const stored = JSON.parse(vault.load(entry.id));
+  assert.deepEqual(stored.paragraphs, parts);
+  assert.deepEqual(Buffer.from(stored.epubArchive, 'base64'), fs.readFileSync(file));
+});
 
 function temporary(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fishtouching-test-'));
@@ -19,6 +42,14 @@ test('secure title, content and progress stay encrypted and password can change'
   const title = '窗边的橘猫';
   const entry = vault.add({ title, kind: 'text', data: Buffer.from(JSON.stringify({ paragraphs: [title, '午后的办公室很安静。'] })), paragraphs: [title, '午后的办公室很安静。'] });
   vault.progress(entry.id, { position: 1, fraction: 0.4 });
+  const oldTimestamp = vault.list()[0].progress.updatedAt;
+  vault.hideFromRecent(entry.id);
+  assert.equal(vault.list()[0].progress.recentHidden, true);
+  assert.equal(vault.list()[0].progress.updatedAt, oldTimestamp);
+  assert.equal(vault.list()[0].progress.position, 1);
+  assert.match(vault.load(entry.id).toString(), /橘猫/);
+  vault.progress(entry.id, { position: 1, fraction: 0.4 });
+  assert.equal(vault.list()[0].progress.recentHidden, undefined);
   for (const file of [vault.catalogPath, path.join(vault.dataDir, `${entry.id}.bin`)]) {
     assert.equal(fs.readFileSync(file).includes(Buffer.from(title)), false);
   }
@@ -39,7 +70,7 @@ test('independent vaults keep passwords and transferred progress separate', t =>
   const first = new Vault(path.join(root, 'vault'));
   const second = new Vault(path.join(root, 'vault-spaces', '2'));
   first.configure('first-space-pass'); second.configure('second-space-pass');
-  const data = Buffer.from(JSON.stringify({ paragraphs: ['第一卷', '第二卷'] }));
+  const data = Buffer.from(JSON.stringify({ paragraphs: ['第一卷', '第二卷'], epubArchive: 'fixture' }));
   const original = first.add({ title: '虚构合卷', kind: 'text', data, paragraphs: ['第一卷', '第二卷'] });
   first.progress(original.id, { position: 1, fraction: 0.4 });
   const movedID = first.transfer(original.id, second);
@@ -71,6 +102,12 @@ test('removing an imported public copy keeps the original file', t => {
   const entry = library.add(source);
   assert.deepEqual(paragraphs(library.load(entry)), ['第一段', '第二段']);
   library.update(entry.id, { progress: { position: 1, fraction: 0.2, updatedAt: Date.now() } });
+  library.hideFromRecent(entry.id);
+  assert.equal(library.list()[0].progress.recentHidden, true);
+  assert.equal(library.list()[0].progress.position, 1);
+  assert.deepEqual(paragraphs(library.load(entry)), ['第一段', '第二段']);
+  library.update(entry.id, { progress: { position: 1, fraction: 0.2, updatedAt: Date.now() } });
+  assert.equal(library.list()[0].progress.recentHidden, undefined);
   library.remove(entry.id);
   assert.equal(library.list().length, 0);
   assert.equal(fs.readFileSync(source, 'utf8'), '第一段\n第二段');

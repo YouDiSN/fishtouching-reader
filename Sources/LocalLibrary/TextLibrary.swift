@@ -51,11 +51,15 @@ final class TextLibrary {
         let data = try Data(contentsOf: source)
         guard let text = PlainTextDecoder.decode(data) else { throw VaultFailure.badData }
         let paragraphs = text.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        try importParagraphs(paragraphs, title: source.deletingPathExtension().lastPathComponent)
+    }
+    func importParagraphs(_ paragraphs: [String], title: String) throws {
+        guard !paragraphs.isEmpty else { throw VaultFailure.badData }
         let count = paragraphs.reduce(0) { $0 + $1.unicodeScalars.reduce(0) { $0 + (CharacterSet.alphanumerics.contains($1) ? 1 : 0) } }
-        let item = PublicText(id: UUID().uuidString, title: source.deletingPathExtension().lastPathComponent,
+        let item = PublicText(id: UUID().uuidString, title: title,
                               importedAt: Date(), paragraphCount: paragraphs.count, wordCount: count)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        try data.write(to: url(item.id), options: .atomic)
+        try Data(paragraphs.joined(separator: "\n").utf8).write(to: url(item.id), options: .atomic)
         var items = try catalogItems(); items.append(item)
         try encoder.encode(items).write(to: catalogURL, options: .atomic)
     }
@@ -70,7 +74,18 @@ final class TextLibrary {
     }
     func progress(_ id: String) throws -> ReadingProgress? { try progressMap()[id] }
     func saveProgress(_ progress: ReadingProgress, for id: String) throws {
-        var map = try progressMap(); map[id] = progress
+        var map = try progressMap()
+        var active = progress
+        active.recentHidden = nil
+        map[id] = active
+        try encoder.encode(map).write(to: progressURL, options: .atomic)
+    }
+    func hideFromRecent(_ id: String) throws {
+        guard try catalogItems().contains(where: { $0.id == id }) else { throw VaultFailure.badData }
+        var map = try progressMap()
+        guard var current = map[id] else { return }
+        current.recentHidden = true
+        map[id] = current
         try encoder.encode(map).write(to: progressURL, options: .atomic)
     }
 }

@@ -1,6 +1,6 @@
 {
   "name": "fishtouching-reader-windows",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "private": true,
   "description": "FishTouching Reader for Windows",
   "main": "main.js",
@@ -11,6 +11,8 @@
     "start": "npm run prepare:assets && electron ."
   },
   "dependencies": {
+    "@xmldom/xmldom": "^0.9.12",
+    "fflate": "^0.8.3",
     "pdfjs-dist": "6.4.299"
   },
   "devDependencies": {

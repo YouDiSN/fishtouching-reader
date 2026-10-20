@@ -14,13 +14,16 @@ struct PDFReadingProgress: Codable {
     let y: Double
     let fraction: Double?
     let updatedAt: Date?
+    var recentHidden: Bool? = nil
 
-    init(pageIndex: Int, x: Double, y: Double, fraction: Double? = nil, updatedAt: Date? = nil) {
+    init(pageIndex: Int, x: Double, y: Double, fraction: Double? = nil, updatedAt: Date? = nil,
+         recentHidden: Bool? = nil) {
         self.pageIndex = pageIndex
         self.x = x
         self.y = y
         self.fraction = fraction
         self.updatedAt = updatedAt
+        self.recentHidden = recentHidden
     }
 }
 
@@ -44,7 +47,8 @@ final class PDFLibrary {
         let fileDate = (try? FileManager.default.attributesOfItem(atPath: progressURL.path)[.modificationDate]) as? Date
         return stored.mapValues { progress in
             PDFReadingProgress(pageIndex: progress.pageIndex, x: progress.x, y: progress.y,
-                               fraction: progress.fraction, updatedAt: progress.updatedAt ?? fileDate)
+                               fraction: progress.fraction, updatedAt: progress.updatedAt ?? fileDate,
+                               recentHidden: progress.recentHidden)
         }
     }
 
@@ -70,7 +74,16 @@ final class PDFLibrary {
         guard try list().contains(where: { $0.id == id }) else { return }
         var progress = try progressMap()
         progress[id] = PDFReadingProgress(pageIndex: position.pageIndex, x: position.x, y: position.y,
-                                          fraction: position.fraction, updatedAt: Date())
+                                          fraction: position.fraction, updatedAt: Date(), recentHidden: nil)
+        try encoder.encode(progress).write(to: progressURL, options: .atomic)
+    }
+
+    func hideFromRecent(_ id: String) throws {
+        guard try list().contains(where: { $0.id == id }) else { throw VaultFailure.badData }
+        var progress = try progressMap()
+        guard var current = progress[id] else { return }
+        current.recentHidden = true
+        progress[id] = current
         try encoder.encode(progress).write(to: progressURL, options: .atomic)
     }
 
@@ -96,6 +109,16 @@ final class PDFLibrary {
         let file = fileURL(for: id)
         if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
         pageCountCache.removeValue(forKey: id)
+    }
+
+    @discardableResult func importData(_ data: Data, title: String, pageCount: Int) throws -> LocalPDF {
+        guard pageCount > 0 else { throw VaultFailure.badData }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let pdf = LocalPDF(id: UUID().uuidString, title: title, importedAt: Date(), pageCount: pageCount)
+        try data.write(to: fileURL(for: pdf.id), options: .atomic)
+        var items = try catalogItems(); items.append(pdf)
+        try encoder.encode(items).write(to: catalogURL, options: .atomic)
+        return pdf
     }
 
     @discardableResult func importFile(_ source: URL) throws -> LocalPDF {

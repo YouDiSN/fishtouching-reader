@@ -15,12 +15,13 @@ process.on('uncaughtException', error => { traceSmoke(`uncaught: ${error.stack |
 process.on('unhandledRejection', error => { traceSmoke(`rejection: ${error?.stack || error}`); process.exit(1); });
 const { Vault, writeAtomic } = require('./vault');
 const { PublicLibrary, paragraphs } = require('./library');
+const { ImportPluginRegistry, validateManifest } = require('./import-plugins');
 
 const DEFAULT_NAME = 'FishTouching Reader';
 const MAX_VAULTS = 2;
 const ICONS = new Set(['fish', 'book', 'night', 'leaf', 'coffee', 'star', 'pencil', 'music', 'sunrise', 'cloud']);
 const assets = path.join(__dirname, 'assets');
-let root, vault, vaults, publicLibrary, preferences, window, settingsWindow, tray;
+let root, vault, vaults, publicLibrary, preferences, window, settingsWindow, tray, importPlugins;
 let activeVaultIndex = 0, resumeVaultIndex = 0, settingsVaultIndex = 0;
 let currentTab = 'normal', currentId = null, resumeId = null, pdf = null;
 let switching = false, dialogOpen = false, quitting = false;
@@ -65,14 +66,14 @@ function normalState() {
   return { type: 'normal', pdfs: publicLibrary.list().map(e => ({ id: e.id, title: e.title, kind: e.kind,
     pageCount: e.kind === 'text' ? e.count : e.pageCount,
     pageIndex: e.progress?.position || 0, pageFraction: e.progress?.fraction || 0,
-    updatedAt: (e.progress?.updatedAt || 0) / 1000 })) };
+    updatedAt: (e.progress?.updatedAt || 0) / 1000, recentHidden: Boolean(e.progress?.recentHidden) })) };
 }
 function secureState() {
   return { type: 'library', books: vault.list().map(e => ({ id: e.id, title: e.title,
     host: e.sourceURL ? new URL(e.sourceURL).hostname : (e.kind === 'pdf' ? 'PDF' : '本地文件'),
     count: e.count, wordCount: e.wordCount, kind: e.kind, pageCount: e.pageCount,
     paragraph: e.progress?.position || 0, fraction: e.progress?.fraction || 0,
-    updatedAt: (e.progress?.updatedAt || 0) / 1000 })) };
+    updatedAt: (e.progress?.updatedAt || 0) / 1000, recentHidden: Boolean(e.progress?.recentHidden) })) };
 }
 async function loadReader(data) {
   if (!window.webContents.getURL().endsWith('/index.html')) {
@@ -85,11 +86,12 @@ async function showNormal() { currentTab = 'normal'; currentId = null; window.se
 async function showSecure() { currentTab = 'secure'; currentId = null; window.setContentProtection(vault.unlocked); await loadReader(vault.unlocked ? secureState() : { type: 'locked' }); }
 async function showText(entry, secure) {
   const data = secure ? vault.load(entry.id) : publicLibrary.load(entry);
+  const book = secure ? (() => { try { return JSON.parse(data); } catch { return null; } })() : null;
   const parts = secure ? secureParagraphs(data) : paragraphs(data);
   currentTab = secure ? 'secure' : 'normal'; currentId = entry.id;
   if (secure) { resumeId = entry.id; resumeVaultIndex = activeVaultIndex; }
   await loadReader({ type: 'book', tab: currentTab, id: entry.id, encodedTitle: entry.title,
-    paragraphs: parts, paragraph: entry.progress?.position || 0, fraction: entry.progress?.fraction || 0 });
+    paragraphs: parts, hasEPUB: Boolean(book?.epubArchive), paragraph: entry.progress?.position || 0, fraction: entry.progress?.fraction || 0 });
   if (secure) window.setContentProtection(true);
 }
 async function openPDF(entry, secure, cover = false) {
@@ -143,22 +145,106 @@ async function openEntry(id, secure) {
   if (entry.kind === 'pdf') await openPDF(entry, secure);
   else await showText(entry, secure);
 }
-async function importLocal() {
+function sendImportPlugins(extra = {}) {
+  let payload;
+  try { payload = { plugins: importPlugins.views(), ...extra }; }
+  catch (error) { payload = { error: '无法读取插件配置：' + error.message }; }
+  if (window && !window.isDestroyed() && !pdf) window.webContents.executeJavaScript(`receiveImportPlugins(${JSON.stringify(payload)})`).catch(() => {});
+}
+let webJob = null, webPreview = null;
+function cancelWebImport() { webJob?.abort(); webJob=null; webPreview=null; }
+function sendWeb(payload) { if(window && !window.isDestroyed() && !pdf) window.webContents.executeJavaScript(`receiveWebImport(${JSON.stringify(payload)})`).catch(()=>{}); }
+async function confirmPlugin(plugin, source) {
+  dialogOpen=true;
+  try {
+    const permission=plugin.parser==='website' ? `仅访问 ${require("./web-import").rules.hosts(plugin.adapter)}；番茄另需访问 lf6-awef.bytetos.com 校验字体。Fake-IP 时使用 Cloudflare 加密 DNS，仅发送域名。不执行网页脚本。` : '仅读取选择的本地文本文件。';
+    const answer=await dialog.showMessageBox(window,{type:'question',message:`安装社区插件“${plugin.name}”？`,detail:`来源：${source}\n作者：${plugin.author}（未经认证）\n版本：${plugin.version}\n权限：${permission}\n同标识插件将更新；安装后默认停用。`,buttons:['安装','取消'],defaultId:1,cancelId:1});
+    if(answer.response===0){importPlugins.install(plugin);sendImportPlugins({message:'社区插件已安装，请启用后使用。'});}
+  } finally {dialogOpen=false;}
+}
+async function installWebPlugin(data) {
+  const {fetchPublic,packageManifest}=require('./web-import');
+  cancelWebImport();const job=new AbortController();webJob=job;
+  try {
+    const p=data.recommended ? require('./assets/community-plugins.json').find(p=>p.id===data.recommended) : packageManifest(await fetchPublic(data.url,job.signal,262144));
+    if(webJob!==job)return;if(!p)throw Error('插件不存在。');webJob=null;await confirmPlugin(p,data.recommended?'随附实验性社区规则（非网站官方）':data.url);
+  } catch(e){if(webJob===job){webJob=null;sendImportPlugins({error:e.message});}}
+}
+async function previewWebsite(data) {
+  cancelWebImport();if(currentTab!=='normal'&&!vault.unlocked)return;
+  const job=new AbortController();webJob=job;
+  try {
+    const p=importPlugins.website(data.id),{rules,fetchPublic}=require('./web-import');rules.checkURL(p.adapter,data.url,'book');
+    const html=await fetchPublic(data.url,job.signal);if(webJob!==job)return;
+    const catalogURL=rules.catalogRequest(p.adapter,data.url);
+    const catalogJSON=catalogURL ? (await fetchPublic(catalogURL,job.signal)).toString('utf8') : '';if(webJob!==job)return;
+    webPreview={...rules.catalog(p.adapter,data.url,html.toString('utf8'),catalogJSON),pluginID:p.id,source:data.url};webJob=null;sendWeb({preview:webPreview});
+  }catch(e){if(webJob===job){webJob=null;sendWeb({error:e.message});}}
+}
+async function importWebsite(data) {
+  if(webJob||!webPreview||(currentTab!=='normal'&&!vault.unlocked))return;
+  const preview=webPreview,secure=currentTab==='secure',target=vault,job=new AbortController();webJob=job;webPreview=null;
+  try {
+    const p=importPlugins.website(preview.pluginID),{rules,fetchPublic}=require('./web-import'),{start,end}=data;
+    if(!Number.isInteger(start)||!Number.isInteger(end)||start<1||end<start||end>preview.chapters.length||end-start>=100)throw Error('每次请选择有效的 1–100 章范围。');
+    const chapters=preview.chapters.slice(start-1,end),parts=[],fontDigests=new Map();let size=0;
+    for(let i=0;i<chapters.length;i++) {
+      if(i)await require('node:timers/promises').setTimeout(1000,undefined,{signal:job.signal});job.signal.throwIfAborted();
+      const c=chapters[i];rules.checkURL(p.adapter,c.url,'chapter');const body=await fetchPublic(c.url,job.signal);size+=body.length;
+      if(size>16*1024*1024)throw Error('本次导入超过 16 MB 限制。');
+      const html=body.toString('utf8'),fontURL=rules.fontRequest(p.adapter,html);
+      if(fontURL&&!fontDigests.has(fontURL))fontDigests.set(fontURL,require('node:crypto').createHash('sha256').update(await fetchPublic(fontURL,job.signal,524288)).digest('hex'));
+      parts.push(c.title,...rules.chapter(p.adapter,html,fontDigests.get(fontURL)));if(webJob===job)sendWeb({message:`已验证 ${i+1}/${chapters.length} 章…`});
+    }
+    if(webJob!==job)return;
+    if((currentTab==='secure')!==secure || secure&&(vault!==target||!vault.unlocked))throw Error('目标书库已切换或锁定。');
+    importPlugins.website(p.id);const title=`${preview.title}（目录第${start}–${end}项）`;
+    if(secure){const buffer=Buffer.from(JSON.stringify({paragraphs:parts}));try{vault.add({title,kind:'text',paragraphs:parts,data:buffer});}finally{buffer.fill(0);}}
+    else publicLibrary.addText(title,parts);
+    webJob=null;send(secure?secureState():normalState());
+  }catch(e){if(webJob===job){webJob=null;sendWeb({error:'未保存本次导入：'+e.message});}}
+}
+
+async function installImportPlugin() {
+  dialogOpen=true;
+  try {
+    const selection=await dialog.showOpenDialog(window,{properties:['openFile'],filters:[{name:'社区插件',extensions:['json','zip']}]});
+    if(selection.canceled)return;const file=selection.filePaths[0];
+    if(fs.statSync(file).size>262144)throw Error('插件包不能超过 256 KB。');
+    const p=require('./web-import').packageManifest(fs.readFileSync(file));await confirmPlugin(p,path.basename(file));
+  }catch(e){sendImportPlugins({error:e.message});}finally{dialogOpen=false;}
+}
+async function removeImportPlugin(id) {
   dialogOpen = true;
   try {
-    const selection = await dialog.showOpenDialog(window, { properties: ['openFile', 'multiSelections'], filters: [{ name: '书籍', extensions: ['txt', 'pdf'] }] });
+    const decision = await dialog.showMessageBox(window, { type: 'question', message: '移除这个社区插件？', detail: '已导入的书籍和阅读进度会保留。', buttons: ['移除', '取消'], defaultId: 1, cancelId: 1 });
+    if (decision.response === 0) { importPlugins.remove(id); sendImportPlugins({ message: '插件已移除，书籍保持不变。' }); }
+  } catch (error) { sendImportPlugins({ error: error.message }); }
+  finally { dialogOpen = false; }
+}
+async function importLocal() {
+  dialogOpen = true;
+  let imported = 0;
+  const secure = currentTab === 'secure', targetVault = vault;
+  try {
+    const extensions = importPlugins.enabledExtensions();
+    if (!extensions.length) throw new Error('没有已启用的导入插件，请先在“导入插件”中启用。');
+    const selection = await dialog.showOpenDialog(window, { properties: ['openFile', 'multiSelections'], filters: [{ name: '已启用插件支持的书籍', extensions }] });
     if (selection.canceled) return;
+    if ((currentTab === 'secure') !== secure || (secure && (vault !== targetVault || !vault.unlocked))) throw new Error('目标书库已切换或锁定，请重新导入。');
     for (const file of selection.filePaths) {
-      if (currentTab === 'secure') {
-        if (!vault.unlocked) throw new Error('加密书库已锁定。');
-        if (!['.txt', '.pdf'].includes(path.extname(file).toLowerCase())) throw new Error('仅支持 TXT 和 PDF。');
-        const kind = path.extname(file).toLowerCase() === '.pdf' ? 'pdf' : 'text';
-        const data = fs.readFileSync(file);
-        const parts = kind === 'text' ? paragraphs(data) : [];
-        vault.add({ title: path.basename(file, path.extname(file)), kind, data, paragraphs: parts });
-      } else publicLibrary.add(file);
+      const content = importPlugins.parse(file);
+      try {
+        if (secure) vault.add(content);
+        else if (content.kind === 'pdf') publicLibrary.addPDF(content.title, content.data);
+        else publicLibrary.addText(content.title, content.paragraphs);
+        imported++;
+      } finally { content.data.fill(0); }
     }
-    send(currentTab === 'secure' ? secureState() : normalState());
+    send(secure ? secureState() : normalState());
+  } catch (failure) {
+    send(secure ? secureState() : normalState());
+    error(`已导入 ${imported} 个文件。${failure.message}`, secure ? 'library' : 'normal');
   } finally { dialogOpen = false; }
 }
 async function chooseIcon() {
@@ -176,8 +262,13 @@ async function chooseIcon() {
 }
 async function handleAction(data) {
   const action = data?.action;
+  if(["selectNormal","selectSecure","unlock","lock","settings","read","library","toggleImportPlugin","removeImportPlugin"].includes(action))cancelWebImport();
   try {
     switch (action) {
+      case 'installWebPlugin': await installWebPlugin(data); break;
+      case 'previewWebsite': await previewWebsite(data); break;
+      case 'importWebsite': await importWebsite(data); break;
+      case 'cancelWebImport': cancelWebImport(); break;
       case 'retry': send(currentTab === 'secure' ? (vault.unlocked ? secureState() : { type: 'locked' }) : normalState()); break;
       case 'selectNormal': if (currentTab === 'secure' && vault.unlocked) await coverSecure(false); else await showNormal(); break;
       case 'selectSecure': await showSecure(); break;
@@ -221,11 +312,37 @@ async function handleAction(data) {
         } finally { dialogOpen = false; }
         break;
       }
+      case 'exportEPUB': {
+        if (currentTab !== 'secure' || !vault.unlocked || currentId !== data.id) break;
+        const entry = vault.list().find(e => e.id === data.id && e.kind === 'text');
+        if (!entry) break;
+        const book = JSON.parse(vault.load(entry.id).toString('utf8'));
+        if (!book.epubArchive) break;
+        const name = entry.title.replace(/[\\/:*?"<>|\r\n]/g, '-');
+        dialogOpen = true;
+        try {
+          const result = await dialog.showSaveDialog(window, { defaultPath: path.join(app.getPath('downloads'), `${name}.epub`), filters: [{ name: 'EPUB', extensions: ['epub'] }] });
+          if (!result.canceled && result.filePath) fs.writeFileSync(result.filePath, Buffer.from(book.epubArchive, 'base64'), { mode: 0o600 });
+        } finally { dialogOpen = false; }
+        break;
+      }
       case 'openPDF': if (currentTab === 'normal') await openEntry(data.id, false); break;
+      case 'listImportPlugins': sendImportPlugins(); break;
+      case 'installImportPlugin': await installImportPlugin(); break;
+      case 'removeImportPlugin': await removeImportPlugin(data.id); break;
+      case 'toggleImportPlugin':
+        try { importPlugins.setEnabled(data.id, data.enabled === true); sendImportPlugins(); }
+        catch (error) { sendImportPlugins({ error: error.message }); }
+        break;
       case 'importLocal': case 'importPDF': await importLocal(); break;
       case 'removeBook': {
         if (currentTab === 'secure') { if (!vault.unlocked) return; vault.remove(data.id); if (resumeId === data.id) resumeId = null; send(secureState()); }
         else { publicLibrary.remove(data.id); send(normalState()); }
+        break;
+      }
+      case 'removeRecent': {
+        if (currentTab === 'secure') { if (!vault.unlocked) return; vault.hideFromRecent(data.id); send(secureState()); }
+        else { publicLibrary.hideFromRecent(data.id); send(normalState()); }
         break;
       }
       case 'transferBook': {
@@ -311,6 +428,7 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), nodeIntegration: false, contextIsolation: true, sandbox: true } });
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', event => event.preventDefault());
+  window.on('blur',()=>{cancelWebImport();sendWeb({error:'窗口失焦，任务已取消，请重新预览。',reset:true});});
   window.webContents.on('did-finish-load', () => { if (!pdf) send(!vault.configured ? { type: 'setup', iconID: preferences.iconID } : currentTab === 'secure' ? (vault.unlocked ? secureState() : { type: 'locked' }) : normalState()); });
   window.on('blur', () => { coverSecure(); });
   window.on('close', event => { if (!quitting) { event.preventDefault(); coverSecure().finally(() => window.hide()); } });
@@ -338,6 +456,20 @@ async function runSmoke() {
     : path.resolve(__dirname, '../demo/fixtures');
   vault.configure('test4321');
   publicLibrary.add(path.join(demo, '工作汇报.pdf'));
+  smokeStage = 'verify import plugin manager'; traceSmoke(smokeStage);
+  await showNormal();
+  await window.webContents.executeJavaScript("document.getElementById('manageImportPlugins').click()");
+  for (let i = 0; i < 40; i++) {
+    const count = await window.webContents.executeJavaScript("document.querySelectorAll('.plugin-entry').length");
+    if (count === 3) break;
+    if (i === 39) throw new Error('Official import plugins did not render.');
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  await handleAction({ action: 'toggleImportPlugin', id: 'official.txt', enabled: false });
+  if (importPlugins.enabledExtensions().includes('txt')) throw new Error('Plugin disable did not persist.');
+  await handleAction({ action: 'toggleImportPlugin', id: 'official.txt', enabled: true });
+  if (!importPlugins.parse(path.join(demo, '摸鱼.txt')).paragraphs.length) throw new Error('Official TXT plugin did not parse.');
+  await window.webContents.executeJavaScript("document.getElementById('closePlugins').click()");
   const body = fs.readFileSync(path.join(demo, '摸鱼.txt'));
   const entry = vault.add({ title: '窗边的橘猫', kind: 'text', data: Buffer.from(JSON.stringify({ paragraphs: paragraphs(body) })), paragraphs: paragraphs(body) });
   smokeStage = 'render secure TXT'; traceSmoke(smokeStage); process.stdout.write(`${smokeStage}\n`);
@@ -397,6 +529,7 @@ app.whenReady().then(async () => {
     ...Array.from({ length: MAX_VAULTS - 1 }, (_, i) => new Vault(path.join(root, 'vault-spaces', String(i + 2))))];
   vault = vaults[0];
   publicLibrary = new PublicLibrary(path.join(root, 'public'));
+  importPlugins = new ImportPluginRegistry(path.join(root, 'import-plugins'));
   ipcMain.on('app-action', (event, data) => { if (event.sender === window?.webContents) handleAction(data); });
   ipcMain.on('settings-action', (event, data) => { if (event.sender === settingsWindow?.webContents) settingsAction(data); });
   ipcMain.on('pdf-ready', event => { if (event.sender === window?.webContents && pdf) {

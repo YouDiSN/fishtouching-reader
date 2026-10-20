@@ -28,4 +28,4 @@ CI 使用 `.github/workflows/windows.yml` 在 Windows runner 上运行数据层�
 
 ## 第三方组件
 
-桌面外壳采用 [Electron](https://www.electronjs.org/)（MIT），PDF 渲染采用 [PDF.js](https://mozilla.github.io/pdf.js/)（Apache-2.0）。完整许可见发行包 `LICENSES` 和相关依赖文件。
+桌面外壳采用 [Electron](https://www.electronjs.org/)（MIT），PDF 渲染采用 [PDF.js](https://mozilla.github.io/pdf.js/)（Apache-2.0）。EPUB 正文提取使用 fflate 和 xmldom（均为 MIT）。完整许可见发行包 `LICENSES` 和相关依赖文件。

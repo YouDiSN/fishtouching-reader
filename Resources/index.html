@@ -48,8 +48,11 @@
   .recent summary .muted { margin-left: 8px; font-weight: 400; }
   .recent .books { margin-top: 16px; }
   .book-item { position: relative; padding: 18px 52px 18px 20px; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+  .book-item.recent-item { padding-right: 105px; }
   .book-item > div:first-child { min-width: 0; flex: 1; }
   .book-item .remove-book { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; padding: 0; border-radius: 7px; background: transparent; color: #b9cbbd; font-size: 22px; line-height: 1; opacity: 0; pointer-events: none; }
+  .book-item .remove-recent { position: absolute; top: 8px; right: 8px; padding: 5px 8px; border-radius: 7px; background: transparent; color: #afc9b9; font-size: 12px; }
+  .book-item .remove-recent:hover, .book-item .remove-recent:focus-visible { background: #293a33; color: #fff; }
   .book-item:hover .remove-book, .book-item:focus-within .remove-book { opacity: 1; pointer-events: auto; }
   .book-item .remove-book:hover, .book-item .remove-book:focus-visible { background: #713e3e; color: #fff; }
   .book-item .transfer-book { background: #293a33; color: #dce9df; font-size: 12px; padding: 7px 9px; }
@@ -67,6 +70,23 @@
   .message { margin: 18px 0; padding: 12px 15px; background: #473526; border-radius: 9px; color: #f5d6a7; }
   .preview { padding: 24px; margin-top: 28px; }
   .sample { background: #121c18; padding: 20px; border-radius: 10px; white-space: pre-wrap; line-height: 1.9; max-height: 320px; overflow: auto; font-family: serif; }
+  .plugin-badges { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+  .plugin-badge { display: inline-block; padding: 3px 7px; border-radius: 6px; background: #294737; color: #b6dfc3; font-size: 11px; }
+  .plugin-badge.community { background: #413b29; color: #e0cf9b; }
+  .plugin-dialog { width: min(680px,calc(100vw - 36px)); max-height: 85vh; padding: 0; overflow: hidden; }
+  .plugin-header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px 20px; border-bottom:1px solid #496153; }
+  .plugin-header h2 { margin:0; }
+  .plugin-close { display:grid; place-items:center; width:36px; height:36px; padding:0; flex-shrink:0; border-radius:8px; }
+  .plugin-close svg { width:20px; height:20px; pointer-events:none; }
+  .plugin-body { padding:20px; max-height:calc(85vh - 80px); overflow:auto; box-sizing:border-box; }
+  .plugin-entry { padding: 16px 0; border-bottom: 1px solid #34483d; }
+  .plugin-entry h3 { margin: 0 0 8px; font-size: 16px; overflow-wrap: anywhere; }
+  .plugin-entry p { margin: 7px 0; }
+  .plugin-dialog .plugin-entry .row { margin-top: 0; justify-content: space-between; }
+  .plugin-entry .row h3 { flex: 1; margin: 0; }
+  .plugin-entry details { color: #a0b3a7; font-size: 12px; }
+  .plugin-entry summary { cursor: pointer; }
+  .plugin-entry .plugin-status { white-space: nowrap; font-size: 12px; color: #a0b3a7; }
   .reader-head { position: sticky; top: 0; z-index: 2; background: rgba(16,23,22,.96); backdrop-filter: blur(12px); border-bottom: 1px solid #34483d; padding: 14px 24px; display: flex; gap: 12px; align-items: center; }
   .reader-head .tabs { margin: 0; }
   .reader-head .title { flex: 1; min-width: 0; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; font-size: 13px; color: #acc1b1; }
@@ -176,17 +196,62 @@ function render() {
   if (state.type==='library') return renderLibrary();
   if (state.type==='book') return renderBook();
 }
+// Shared macOS/Windows UI switch; keep community entry points hidden until ready.
+const communityPluginsVisible = false;
+function importPluginEntry() {
+  return `<div class="plugin-badges"><span class="plugin-badge">TXT · 官方插件</span><span class="plugin-badge">PDF · 官方插件</span><span class="plugin-badge">EPUB · 官方插件</span></div><button class="ghost" id="manageImportPlugins">管理导入插件…</button>${communityPluginsVisible ? '<button class="ghost" id="openWebImport">从网址导入…</button>' : ''}`;
+}
+function bindImportPlugins(){document.getElementById('openWebImport')?.addEventListener('click',openWebImport);document.getElementById('manageImportPlugins').onclick=()=>{
+  document.getElementById('pluginDialog')?.remove();
+  const dialog=document.createElement('dialog');dialog.id='pluginDialog';dialog.className='confirm-dialog plugin-dialog';dialog.setAttribute('aria-labelledby','pluginTitle');
+  dialog.innerHTML='<div class="plugin-header"><h2 id="pluginTitle">导入插件</h2><button type="button" class="ghost plugin-close" id="closePlugins" aria-label="关闭导入插件" title="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div><div class="plugin-body"><p class="muted">TXT、PDF、EPUB 官方插件随应用提供，默认启用。停用不会影响已导入的书籍。</p><div id="communityPluginControls"><button id="installPlugin">从 ZIP / JSON 安装…</button><div style="margin:12px 0"><input id="pluginURL" type="url" placeholder="插件 JSON 或 ZIP 的 HTTPS 直链" style="width:70%"><button id="installPluginURL">从地址安装</button></div><p class="muted">安装前展示来源和权限，安装后默认停用。不执行外部代码。</p><details><summary>实验性社区书源（非网站官方）</summary><p class="muted">番茄、七猫已通过免费章节抽查；起点当前受访问验证限制。均不保证全书可下载。</p><button class="secondary" data-recommended="community.fanqie">安装番茄</button> <button class="secondary" data-recommended="community.qimao">安装七猫</button> <button class="secondary" data-recommended="community.qidian">安装起点免费书源</button></details></div><p id="pluginMessage" role="status"></p><div id="pluginList">正在读取插件…</div></div>';
+  if (!communityPluginsVisible) dialog.querySelector('#communityPluginControls').remove();
+  app.append(dialog);document.getElementById('closePlugins').onclick=()=>dialog.close();document.getElementById('installPlugin')?.addEventListener('click',()=>post('installImportPlugin'));document.getElementById('installPluginURL')?.addEventListener('click',()=>{document.getElementById('pluginMessage').textContent='正在获取插件…';post('installWebPlugin',{url:document.getElementById('pluginURL').value.trim()});});dialog.querySelectorAll('[data-recommended]').forEach(b=>b.onclick=()=>post('installWebPlugin',{recommended:b.dataset.recommended}));dialog.addEventListener('close',()=>post('cancelWebImport'));dialog.showModal();post('listImportPlugins');
+};}
+function receiveImportPlugins(payload){
+  const source=document.getElementById("webSource");if(source){source.textContent="";for(const p of payload.plugins||[]){if(p.enabled&&p.parser==="website"){const option=document.createElement("option");option.value=p.id;option.textContent=p.name+" · 社区插件";source.append(option);}}if(!source.options.length)document.getElementById("webMessage").textContent="尚未启用书源，请先到管理导入插件中安装并启用。";}
+  const dialog=document.getElementById('pluginDialog');if(!dialog||!dialog.open)return;
+  document.getElementById('pluginMessage').textContent=payload.error||payload.message||'';
+  if(!payload.plugins){document.getElementById('pluginList').textContent='插件配置暂不可用，请关闭后重试。';return;}
+  const list=document.getElementById('pluginList');list.textContent='';
+  for(const plugin of payload.plugins){
+    if (!communityPluginsVisible && plugin.origin !== 'official') continue;
+    const item=document.createElement('section');item.className='plugin-entry';
+    const official=plugin.origin==='official';
+    item.innerHTML=`<div class="row"><h3>${h(plugin.name)} <span class="plugin-badge ${official?'':'community'}">${official?'官方插件':'社区插件'}</span></h3><span class="plugin-status">${plugin.enabled?'已启用':'已停用'}</span><button class="secondary toggle-plugin">${plugin.enabled?'停用':'启用'}</button>${official?'':'<button class="ghost remove-plugin">移除</button>'}</div><p class="muted">${h(plugin.author)} · v${h(plugin.version)} · ${plugin.extensions.map(ext=>'.'+h(ext)).join('、')}</p><p>${h(plugin.description)}</p><details><summary>查看权限</summary><p>${h(plugin.permissions)}</p></details>`;
+    item.querySelector('.toggle-plugin').onclick=e=>{e.target.disabled=true;post('toggleImportPlugin',{id:plugin.id,enabled:!plugin.enabled});};
+    const remove=item.querySelector('.remove-plugin');if(remove)remove.onclick=()=>post('removeImportPlugin',{id:plugin.id});list.append(item);
+  }
+}
+function openWebImport(){
+  if (!communityPluginsVisible) return;
+  document.getElementById('webImportDialog')?.remove();
+  const dialog=document.createElement('dialog');dialog.id='webImportDialog';dialog.className='confirm-dialog plugin-dialog';
+  dialog.innerHTML=`<div class="plugin-header"><h2>从网址导入</h2><button type="button" class="ghost plugin-close" id="closeWebImport" aria-label="关闭从网址导入" title="关闭"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div><div class="plugin-body"><p class="muted">仅导入公开免费章节。番茄支持已验证字体，七猫读取页面公开正文数据；起点当前受验证限制。请先安装并启用书源。</p><label>书源 <select id="webSource"></select></label><label style="display:block;margin:12px 0">书籍地址 <input id="webURL" type="url" placeholder="粘贴 HTTPS 书籍地址" style="width:100%;box-sizing:border-box"></label><button id="previewWeb">预览目录</button><p id="webMessage" role="status"></p><div id="webPreview"></div></div>`;
+  app.append(dialog);dialog.addEventListener('close',()=>{post('cancelWebImport');dialog.remove();});document.getElementById('closeWebImport').onclick=()=>dialog.close();
+  document.getElementById('previewWeb').onclick=()=>{document.getElementById('webPreview').textContent='';document.getElementById('webMessage').textContent='正在读取目录…';post('previewWebsite',{id:document.getElementById('webSource').value,url:document.getElementById('webURL').value.trim()});};
+  dialog.showModal();post('listImportPlugins');
+}
+function receiveWebImport(payload){
+  const dialog=document.getElementById('webImportDialog');if(!dialog?.open)return;
+  document.getElementById('webMessage').textContent=payload.error||payload.message||'';
+  if(payload.reset||payload.error)document.getElementById('webPreview').textContent='';
+  const p=payload.preview;if(!p)return;
+  document.getElementById('webPreview').innerHTML=`<h3>${h(p.title)}</h3><p>${h(p.warning)}</p><details><summary>查看目录（${p.chapters.length} 项）</summary><ol style="max-height:180px;overflow:auto">${p.chapters.map(c=>`<li>${h(c.title)}</li>`).join('')}</ol></details><p>选择目录范围，每次最多 100 章：</p><label>从 <input id="webStart" type="number" min="1" max="${p.chapters.length}" value="1" style="width:80px"></label><label> 到 <input id="webEnd" type="number" min="1" max="${p.chapters.length}" value="${Math.min(10,p.chapters.length)}" style="width:80px"></label><p class="muted">任意一章失败，本批次不入库；成功后书名会注明所选范围。失焦或关闭窗口会取消任务。</p><button id="confirmWebImport">验证正文并导入所选章节</button>`;
+  document.getElementById('confirmWebImport').onclick=e=>{const start=Number(document.getElementById('webStart').value),end=Number(document.getElementById('webEnd').value);if(!Number.isInteger(start)||!Number.isInteger(end)||start<1||end<start||end>p.chapters.length||end-start>=100){document.getElementById('webMessage').textContent='请选择有效的 1–100 章范围。';return;}e.target.disabled=true;document.getElementById('webMessage').textContent='正在逐章验证…';post('importWebsite',{start,end});};
+}
+
 function renderNormal() {
   app.innerHTML=`<div class="shell">${globalHeader('normal')}<div><h1>我的书库</h1><div class="muted">这里的书籍切换应用时保持原样</div></div>
     ${state.error?`<div class="message">${h(state.error)}</div>`:''}
     <details class="card recent" id="recentPDF"${recentOpen('recentPDFOpen')}><summary>最近阅读<span class="muted" id="recentPDFCount"></span></summary><div class="books" id="recentPDFs"></div></details>
-    <div class="library-tools"><div class="card import"><h2>添加书籍</h2><p class="muted">支持本机 TXT、PDF。</p><button id="importPDF">＋ 添加本地文件</button></div>
+    <div class="library-tools"><div class="card import"><h2>添加书籍</h2><p class="muted">支持本机 TXT、PDF、EPUB。</p><button id="importPDF">＋ 添加本地文件</button>${importPluginEntry()}</div>
     <div><h2>已添加</h2><div class="books" id="pdfs"></div></div></div></div>`;
   bindTabs();
   bindRecent('recentPDF','recentPDFOpen');
-  document.getElementById('importPDF').onclick=()=>post('importLocal');
+  document.getElementById('importPDF').onclick=()=>post('importLocal');bindImportPlugins();
   const pdfs=state.pdfs||[];
-  const recent=pdfs.filter(pdf=>pdf.updatedAt>0).sort((a,b)=>b.updatedAt-a.updatedAt);
+  const recent=pdfs.filter(pdf=>pdf.updatedAt>0&&!pdf.recentHidden).sort((a,b)=>b.updatedAt-a.updatedAt);
   document.getElementById('recentPDFCount').textContent=`${recent.length} 本`;
   renderPDFItems(recent,document.getElementById('recentPDFs'),true);
   renderPDFItems(pdfs,document.getElementById('pdfs'),false);
@@ -195,15 +260,17 @@ function renderPDFItems(pdfs,list,isRecent) {
   if (!pdfs.length) { list.innerHTML=`<div class="muted">${isRecent?'还没有阅读过的书籍':'还没有书籍'}</div>`; return; }
   list.innerHTML='';
   for (const pdf of pdfs) {
-    const item=document.createElement('div'); item.className='card book-item';
+    const item=document.createElement('div'); item.className=`card book-item${isRecent?' recent-item':''}`;
     const pageCount=Math.max(0,pdf.pageCount||0);
     const pageIndex=Math.max(0,Math.min(Math.max(0,pageCount-1),pdf.pageIndex||0));
     const fraction=Math.max(0,Math.min(1,pdf.pageFraction||0));
     const detail=pageCount?`${pdf.kind==='text'?'第':'第'} ${pageIndex+1} / ${pageCount} ${pdf.kind==='text'?'段':'页'}`:'进度未知';
     item.innerHTML=`<div><div class="book-title">${h(pdf.title)}</div>${progressHTML(pageIndex+fraction,pageCount,detail)}${isRecent?`<div class="muted">上次阅读 ${h(readDate(pdf.updatedAt))}</div>`:''}</div>`;
     const button=document.createElement('button'); button.textContent=isRecent?'继续阅读':'打开'; button.onclick=()=>post('openPDF',{id:pdf.id});
-    const remove=document.createElement('button'); remove.className='remove-book'; remove.type='button'; remove.textContent='×'; remove.title='从书库移除'; remove.setAttribute('aria-label',`移除 ${pdf.title}`);
-    remove.onclick=()=>confirmRemoval(pdf.id,pdf.kind,pdf.title);
+    const remove=document.createElement('button'); remove.className=isRecent?'remove-recent':'remove-book'; remove.type='button'; remove.textContent=isRecent?'移出最近':'×';
+    remove.title=isRecent?'从最近阅读移除':'从书库移除';
+    remove.setAttribute('aria-label',`${remove.title} ${pdf.title}`);
+    remove.onclick=()=>isRecent?post('removeRecent',{id:pdf.id,kind:pdf.kind}):confirmRemoval(pdf.id,pdf.kind,pdf.title);
     item.append(button,remove); list.append(item);
   }
 }
@@ -239,10 +306,10 @@ function renderLibrary() {
   app.innerHTML = `<div class="shell">${globalHeader('secure')}<div class="top"><div><h1>加密书库</h1><div class="muted">已保存 ${state.books?.length||0} 本</div></div></div>
     ${state.error ? `<div class="message">${h(state.error)}</div>` : ''}
     <details class="card recent" id="recentBook"${recentOpen('recentBookOpen')}><summary>最近阅读<span class="muted" id="recentBookCount"></span></summary><div class="books" id="recentBooks"></div></details>
-    <div class="library-tools"><div class="card import"><h2>添加书籍</h2><button id="importLocal">＋ 添加本地文件</button><div class="muted" style="margin-top:10px">支持 TXT、PDF</div></div>
+    <div class="library-tools"><div class="card import"><h2>添加书籍</h2><button id="importLocal">＋ 添加本地文件</button>${importPluginEntry()}<div class="muted" style="margin-top:10px">支持 TXT、PDF、EPUB</div></div>
       <div><div class="top"><h2>全部书籍</h2><div class="row"><label class="muted" for="bookSort">排序</label><select id="bookSort"><option value="recent">最近阅读</option><option value="short">字数：从少到多</option><option value="long">字数：从多到少</option></select><button class="ghost" id="decode">${decodeTitles?'显示编码标题':'显示中文标题'}</button></div></div>
       <input id="search" placeholder="搜索书名或站点"><div class="books" id="books"></div></div></div></div>`;
-  document.getElementById('importLocal').onclick=()=>post('importLocal');
+  document.getElementById('importLocal').onclick=()=>post('importLocal');bindImportPlugins();
   bindTabs();
   bindRecent('recentBook','recentBookOpen');
   document.getElementById('decode').onclick=()=>{decodeTitles=!decodeTitles;renderLibrary();};
@@ -250,7 +317,7 @@ function renderLibrary() {
   document.getElementById('bookSort').onchange=e=>{bookSort=e.target.value;localStorage.setItem('bookSort',bookSort);renderBooks();};
   document.getElementById('search').value=searchQuery;
   document.getElementById('search').oninput=e=>{searchQuery=e.target.value;renderBooks();};
-  const recent=(state.books||[]).filter(b=>b.updatedAt>0).sort((a,b)=>b.updatedAt-a.updatedAt);
+  const recent=(state.books||[]).filter(b=>b.updatedAt>0&&!b.recentHidden).sort((a,b)=>b.updatedAt-a.updatedAt);
   document.getElementById('recentBookCount').textContent=`${recent.length} 本`;
   renderBookItems(recent,document.getElementById('recentBooks'),true);
   renderBooks();
@@ -271,18 +338,19 @@ function renderBookItems(books,list,isRecent) {
   if (!books.length) { list.innerHTML=`<div class="muted">${isRecent?'还没有阅读过的小说':'没有匹配的书籍'}</div>`; return; }
   list.innerHTML='';
   for (const b of books) {
-    const item=document.createElement('div'); item.className='card book-item';
+    const item=document.createElement('div'); item.className=`card book-item${isRecent?' recent-item':''}`;
     const label=document.createElement('div'); label.innerHTML=`<div class="book-title">${h(title(b.title))}</div><div class="muted">${h(b.host)} · ${b.kind==='pdf'?`${b.pageCount} 页`:`正文 ${Number(b.wordCount||0).toLocaleString('zh-CN')} 字`}</div>${progressHTML((b.paragraph||0)+(b.fraction||0),b.kind==='pdf'?b.pageCount:b.count,b.kind==='pdf'?`第 ${(b.paragraph||0)+1} / ${b.pageCount} 页`:`${b.count} 段`)}${isRecent?`<div class="muted">上次阅读 ${h(readDate(b.updatedAt))}</div>`:''}`;
     const button=document.createElement('button'); button.textContent='继续阅读'; button.onclick=()=>post('read',{id:b.id});
     if (!isRecent) {
       const transfer=document.createElement('button');transfer.className='transfer-book';transfer.textContent='移至另一书库';
       transfer.onclick=()=>{pendingTransfer=b.id;document.getElementById('transferBookTitle').textContent=`《${title(b.title)}》`;document.getElementById('transferDialog').showModal();};
-      item.append(label,button,transfer);
+      item.append(transfer);
     }
-    const remove=document.createElement('button'); remove.className='remove-book'; remove.type='button'; remove.textContent='×'; remove.title='从书库移除'; remove.setAttribute('aria-label',`移除 ${title(b.title)}`);
-    remove.onclick=()=>confirmRemoval(b.id,b.kind,title(b.title));
-    if (isRecent) item.append(label,button);
-    item.append(remove); list.append(item);
+    const remove=document.createElement('button'); remove.className=isRecent?'remove-recent':'remove-book'; remove.type='button'; remove.textContent=isRecent?'移出最近':'×';
+    remove.title=isRecent?'从最近阅读移除':'从书库移除';
+    remove.setAttribute('aria-label',`${remove.title} ${title(b.title)}`);
+    remove.onclick=()=>isRecent?post('removeRecent',{id:b.id,kind:b.kind}):confirmRemoval(b.id,b.kind,title(b.title));
+    item.prepend(label);item.append(button,remove); list.append(item);
   }
 }
 function renderBook() {
@@ -292,7 +360,7 @@ function renderBook() {
   chunk=Math.floor(saved/chunkSize);
   app.innerHTML=`<div class="reader-head">${tabs(state.tab||'secure')}<button class="secondary" id="back">书库</button><div class="title">${h(title(state.encodedTitle))}</div>
     <details class="reader-menu" id="readingSettings"><summary>阅读设置</summary><div class="reader-popover"><label>字号 <output id="fontLabel">${fontSize}</output></label><div class="row"><button class="secondary" id="smaller" aria-label="缩小字号">A−</button><button class="secondary" id="larger" aria-label="放大字号">A＋</button></div><label for="layout">正文排版</label><select id="layout"><option value="clean">整理排版</option><option value="raw">原始排版</option></select></div></details>
-    <details class="reader-menu"><summary aria-label="更多操作">···</summary><div class="reader-popover">${state.tab==='normal'?'':`<button class="ghost" id="exportTxt">导出 TXT</button>`}<button class="ghost" id="settings">应用设置</button></div></details></div>
+    <details class="reader-menu"><summary aria-label="更多操作">···</summary><div class="reader-popover">${state.tab==='normal'?'':`<button class="ghost" id="exportTxt">导出 TXT</button>${state.hasEPUB?'<button class="ghost" id="exportEPUB">导出原始 EPUB</button>':''}`}<button class="ghost" id="settings">应用设置</button></div></details></div>
     <div class="reader"><div class="reader-text" id="text"></div></div>
     <footer class="reader-dock"><div class="reader-nav"><button class="ghost chapter-current" id="directory" title="打开章节目录">目录</button><div class="page-controls"><button class="secondary" id="prev">上一页</button><button class="ghost" id="page" aria-label="跳转页码"></button><button class="secondary" id="next">下一页</button></div><span class="muted" id="percent">0%</span></div><div class="progress-track" id="readingProgress" role="progressbar" aria-label="整本阅读进度" aria-valuemin="0" aria-valuemax="100"><span></span></div></footer>
     <button class="secondary jump-return" id="jumpReturn" hidden>返回跳转前位置</button>
@@ -301,6 +369,7 @@ function renderBook() {
   document.getElementById('back').onclick=()=>{flushProgress();post('library');};
   bindTabs();
   if(document.getElementById('exportTxt')) document.getElementById('exportTxt').onclick=()=>post('exportText',{id:state.id});
+  if(document.getElementById('exportEPUB')) document.getElementById('exportEPUB').onclick=()=>post('exportEPUB',{id:state.id});
   const layout=document.getElementById('layout'); layout.value=layoutMode;
   layout.onchange=()=>{
     const position=currentProgress(); layoutMode=layout.value; localStorage.setItem('layoutMode',layoutMode);

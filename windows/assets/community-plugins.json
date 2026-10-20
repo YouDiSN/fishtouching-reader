@@ -1,0 +1,35 @@
+[
+  {
+    "schemaVersion": 2,
+    "id": "community.fanqie",
+    "name": "番茄书源",
+    "version": "1.1.0",
+    "author": "YouDiSN",
+    "description": "非网站官方。导入未标锁的公开章节；已验证字体可还原，字体变化或校验失败会停止。",
+    "extensions": [],
+    "parser": "website",
+    "adapter": "fanqie"
+  },
+  {
+    "schemaVersion": 2,
+    "id": "community.qidian",
+    "name": "起点免费书源",
+    "version": "1.1.0",
+    "author": "YouDiSN",
+    "description": "非网站官方。当前环境返回访问验证页，尚未验证真实导入成功；不绕过验证或付费限制。",
+    "extensions": [],
+    "parser": "website",
+    "adapter": "qidian"
+  },
+  {
+    "schemaVersion": 2,
+    "id": "community.qimao",
+    "name": "七猫书源",
+    "version": "1.1.0",
+    "author": "YouDiSN",
+    "description": "非网站官方。读取公开目录及页面内的正文数据；只导入目录明确标记免费的章节。",
+    "extensions": [],
+    "parser": "website",
+    "adapter": "qimao"
+  }
+]

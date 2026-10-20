@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 2,
+  "id": "community.fanqie",
+  "name": "番茄书源",
+  "version": "1.1.0",
+  "author": "YouDiSN",
+  "description": "非网站官方。导入未标锁的公开章节；已验证字体可还原，字体变化或校验失败会停止。",
+  "extensions": [],
+  "parser": "website",
+  "adapter": "fanqie"
+}

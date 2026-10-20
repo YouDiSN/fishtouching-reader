@@ -27,7 +27,7 @@ def allowed_mac(name):
     if not name.startswith(prefix):
         return False
     resource = name[len(prefix):]
-    return resource in {'index.html', 'settings.html', 'rename-helper.sh', 'AppIcon.icns'} or resource.startswith('Licenses/') or resource in {f'Icons/{icon}.png' for icon in ICONS}
+    return resource in {'index.html', 'settings.html', 'rename-helper.sh', 'AppIcon.icns', 'web-plugins.js', 'community-plugins.json', 'fanqie-font-map.json'} or resource.startswith('Licenses/') or resource in {f'Icons/{icon}.png' for icon in ICONS}
 
 
 def allowed_windows(name):
@@ -37,7 +37,7 @@ def allowed_windows(name):
         app = name[len(prefix):]
         if app.startswith(('node_modules/', 'LICENSES/')):
             return True
-        return app in {'main.js', 'preload.js', 'library.js', 'vault.js', 'package.json', 'package-lock.json', 'README.md',
+        return app in {'main.js', 'preload.js', 'epub.js', 'import-plugins.js', 'web-import.js', 'assets/web-plugins.js', 'assets/community-plugins.json', 'assets/fanqie-font-map.json', 'library.js', 'vault.js', 'package.json', 'package-lock.json', 'README.md',
                        'scripts/prepare-assets.js', 'scripts/copy-package-lock.js', 'scripts/smoke.ps1',
                        'assets/index.html', 'assets/settings.html', 'assets/pdf.html', 'assets/app.ico'} or app in {f'assets/Icons/{icon}.png' for icon in ICONS}
     if '/' not in name:

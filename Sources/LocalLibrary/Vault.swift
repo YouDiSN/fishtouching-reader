@@ -11,11 +11,13 @@ struct StoredBook: Codable {
     let originalTitle: String
     let paragraphs: [String]
     let importedAt: Date
+    var epubArchive: Data? = nil
 }
 struct ReadingProgress: Codable {
     var paragraph: Int
     var fraction: Double
     var updatedAt: Date
+    var recentHidden: Bool? = nil
 }
 struct BookListing {
     let id: String
@@ -196,9 +198,9 @@ final class Vault {
         try writeCatalog(entries)
         return id
     }
-    func saveText(title: String, paragraphs: [String], sourceURL: String) throws -> String {
+    func saveText(title: String, paragraphs: [String], sourceURL: String, epubArchive: Data? = nil) throws -> String {
         let book = StoredBook(sourceURL: sourceURL, encodedTitle: title,
-                              originalTitle: title, paragraphs: paragraphs, importedAt: Date())
+                              originalTitle: title, paragraphs: paragraphs, importedAt: Date(), epubArchive: epubArchive)
         return try insert(data: encoder.encode(book), title: book.originalTitle, sourceURL: book.sourceURL,
                           kind: "text", importedAt: book.importedAt, paragraphCount: book.paragraphs.count,
                           wordCount: countWords(book.paragraphs), pageCount: 0)
@@ -306,7 +308,9 @@ final class Vault {
     }
     func saveProgress(_ progress: ReadingProgress, for id: String) throws {
         guard let key else { throw VaultFailure.locked }
-        try seal(encoder.encode(progress), with: key).write(to: progressURL(id), options: .atomic)
+        var active = progress
+        active.recentHidden = nil
+        try seal(encoder.encode(active), with: key).write(to: progressURL(id), options: .atomic)
     }
     func loadProgress(_ id: String) throws -> ReadingProgress? {
         guard let key else { throw VaultFailure.locked }
@@ -316,7 +320,22 @@ final class Vault {
     }
     func savePDFProgress(_ progress: PDFReadingProgress, for id: String) throws {
         guard let key else { throw VaultFailure.locked }
-        try seal(encoder.encode(progress), with: key).write(to: progressURL(id), options: .atomic)
+        let active = PDFReadingProgress(pageIndex: progress.pageIndex, x: progress.x, y: progress.y,
+                                        fraction: progress.fraction, updatedAt: Date(), recentHidden: nil)
+        try seal(encoder.encode(active), with: key).write(to: progressURL(id), options: .atomic)
+    }
+    func hideFromRecent(_ id: String) throws {
+        guard let key else { throw VaultFailure.locked }
+        guard let entry = try catalog().entries.first(where: { $0.id == id }) else { throw VaultFailure.badData }
+        if entry.kind == "pdf" {
+            guard var progress = try loadPDFProgress(id) else { return }
+            progress.recentHidden = true
+            try seal(encoder.encode(progress), with: key).write(to: progressURL(id), options: .atomic)
+        } else {
+            guard var progress = try loadProgress(id) else { return }
+            progress.recentHidden = true
+            try seal(encoder.encode(progress), with: key).write(to: progressURL(id), options: .atomic)
+        }
     }
     func loadPDFProgress(_ id: String) throws -> PDFReadingProgress? {
         guard let key else { throw VaultFailure.locked }
