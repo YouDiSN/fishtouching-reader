@@ -190,7 +190,6 @@ let chunk = 0;
 let fontSize = Number(localStorage.getItem('fontSize') || 19);
 let layoutMode = localStorage.getItem('layoutMode') || 'clean';
 let displayParagraphs = [];
-let decodeTitles = true;
 let bookSort = ['recent','short','long'].includes(localStorage.getItem('bookSort')) ? localStorage.getItem('bookSort') : 'recent';
 let progressTimer;
 let setupIconID = 'fish';
@@ -205,7 +204,7 @@ function clearReader() {
 }
 function post(action, data={}) { window.webkit?.messageHandlers?.app?.postMessage({action,...data}); }
 function h(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function title(s) { if (!decodeTitles) return s; try { return decodeURIComponent(s); } catch { return s; } }
+function title(s) { try { return decodeURIComponent(s); } catch { return s; } }
 function progressHTML(position,total,detail) {
   const percent=total>0?Math.max(0,Math.min(100,Math.round(100*position/total))):0;
   return `<div class="muted">${h(detail)} · ${percent}%</div><div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}"><span style="width:${percent}%"></span></div>`;
@@ -362,12 +361,11 @@ function renderLibrary() {
     ${state.error ? `<div class="message">${h(state.error)}</div>` : ''}
     <details class="card recent" id="recentBook"${recentOpen('recentBookOpen')}><summary>最近阅读<span class="muted" id="recentBookCount"></span></summary><div class="books" id="recentBooks"></div></details>
     <div class="library-tools"><div class="card import"><h2>添加书籍</h2><button id="importLocal">＋ 添加本地文件</button>${importPluginEntry()}<div class="muted" style="margin-top:10px">支持 TXT、PDF、EPUB</div></div>
-      <div><div class="top"><h2>全部书籍</h2><div class="row"><label class="muted" for="bookSort">排序</label><select id="bookSort"><option value="recent">最近阅读</option><option value="short">字数：从少到多</option><option value="long">字数：从多到少</option></select><button class="ghost" id="decode">${decodeTitles?'显示编码标题':'显示中文标题'}</button></div></div>
+      <div><div class="top"><h2>全部书籍</h2><div class="row"><label class="muted" for="bookSort">排序</label><select id="bookSort"><option value="recent">最近阅读</option><option value="short">字数：从少到多</option><option value="long">字数：从多到少</option></select></div></div>
       <input id="search" placeholder="搜索书名或站点"><div class="books" id="books"></div></div></div></div>`;
   document.getElementById('importLocal').onclick=()=>post('importLocal');bindImportPlugins();
   bindTabs();
   bindRecent('recentBook','recentBookOpen');
-  document.getElementById('decode').onclick=()=>{decodeTitles=!decodeTitles;renderLibrary();};
   document.getElementById('bookSort').value=bookSort;
   document.getElementById('bookSort').onchange=e=>{bookSort=e.target.value;localStorage.setItem('bookSort',bookSort);renderBooks();};
   document.getElementById('search').value=searchQuery;

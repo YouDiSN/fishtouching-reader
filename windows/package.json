@@ -1,6 +1,6 @@
 {
   "name": "fishtouching-reader-windows",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "private": true,
   "description": "FishTouching Reader for Windows",
   "main": "main.js",

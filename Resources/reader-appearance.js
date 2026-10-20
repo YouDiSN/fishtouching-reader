@@ -29,12 +29,10 @@
   }
   function renderFonts(el) {
     const select=el.querySelector('[data-font]');if(!select)return;
-    const query=el.querySelector('[data-font-search]').value.trim().toLocaleLowerCase();
     select.replaceChildren(new Option('默认宋体 / 衬线体',''));
-    const visible=families.filter(name=>name.toLocaleLowerCase().includes(query));
-    if(current.font&&!visible.includes(current.font))select.add(new Option(current.font+'（当前）',current.font));
-    visible.forEach(name=>select.add(new Option(name,name)));select.value=current.font;
-    el.querySelector('[data-font-status]').textContent=fontError||(fontsLoaded?`${families.length} 款系统字体${query?` · 匹配 ${visible.length} 款`:''}`:'使用本机已安装的字体');
+    if(current.font&&!families.includes(current.font))select.add(new Option(current.font+'（当前）',current.font));
+    families.forEach(name=>select.add(new Option(name,name)));select.value=current.font;
+    el.querySelector('[data-font-status]').textContent=fontError||(fontsLoaded?`${families.length} 款系统字体`:'使用本机已安装的字体');
   }
   function requestFonts(){if(!requesting&&!fontsLoaded){requesting=true;post('listSystemFonts');}}
   function mount(){controls().forEach((el,index)=>{
@@ -44,13 +42,12 @@
       el.querySelectorAll('[data-theme]').forEach(button=>button.onclick=()=>post('saveReadingPreferences',{theme:button.dataset.theme}));return;
     }
     const id='reader-font-'+controlID++;
-    el.innerHTML=`<div class="font-setting"><div class="font-setting-title"><label for="${id}">正文字体</label><span data-font-status></span></div><div class="font-fields"><input data-font-search type="search" placeholder="搜索系统字体" aria-label="搜索系统字体" autocomplete="off"><select id="${id}" data-font aria-label="选择正文字体"></select></div></div><div class="font-setting"><div class="font-setting-title"><label for="${id}-size">字号</label><output data-size-output>${current.fontSize}</output></div><div class="size-control"><span aria-hidden="true">A</span><input id="${id}-size" data-size type="range" min="15" max="30" step="1" value="${current.fontSize}"><span aria-hidden="true">A</span></div></div><div class="font-preview-label">预览</div><div class="appearance-preview"><div class="preview-chapter">第一章 · 午后</div><p>窗边的阳光落在书页上。风轻轻翻过一页，故事就从这里开始。</p><small>Reading feels like home. 0123456789</small></div><p class="appearance-hint">用于 TXT 和 EPUB 正文。PDF 保留原始排版。</p>`;
+    el.innerHTML=`<div class="font-setting"><div class="font-setting-title"><label for="${id}">正文字体</label><span data-font-status></span></div><div class="font-fields"><select id="${id}" data-font aria-label="选择正文字体"></select></div></div><div class="font-setting"><div class="font-setting-title"><label for="${id}-size">字号</label><output data-size-output>${current.fontSize}</output></div><div class="size-control"><span aria-hidden="true">A</span><input id="${id}-size" data-size type="range" min="15" max="30" step="1" value="${current.fontSize}"><span aria-hidden="true">A</span></div></div><div class="font-preview-label">预览</div><div class="appearance-preview"><div class="preview-chapter">第一章 · 午后</div><p>窗边的阳光落在书页上。风轻轻翻过一页，故事就从这里开始。</p><small>Reading feels like home. 0123456789</small></div><p class="appearance-hint">用于 TXT 和 EPUB 正文。PDF 保留原始排版。</p>`;
     const font=el.querySelector('[data-font]');font.onfocus=requestFonts;font.onpointerdown=requestFonts;font.onchange=()=>post('saveReadingPreferences',{font:font.value});
-    const search=el.querySelector('[data-font-search]');search.onfocus=requestFonts;search.oninput=()=>renderFonts(el);
     const size=el.querySelector('[data-size]');size.oninput=()=>{el.querySelector('[data-size-output]').textContent=size.value;el.querySelector('.appearance-preview').style.setProperty('--reader-size',size.value+'px');};
     size.onchange=()=>post('saveReadingPreferences',{fontSize:Number(size.value)});renderFonts(el);
   });}
   window.receiveReadingPreferences=apply;
   window.receiveSystemFonts=data=>{requesting=false;fontsLoaded=!data.error;fontError=data.error||'';families=[...new Set((data.fonts||[]).filter(x=>typeof x==='string'&&x.length>0&&x.length<=200))].sort((a,b)=>a.localeCompare(b));controls().forEach(renderFonts);};
-  window.ReaderAppearance={mount,current:()=>({...current})};mount();post('readingPreferences',{legacyFontSize:Number(localStorage.getItem('fontSize')||19)});
+  window.ReaderAppearance={mount,current:()=>({...current})};mount();requestFonts();post('readingPreferences',{legacyFontSize:Number(localStorage.getItem('fontSize')||19)});
 })();
