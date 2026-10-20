@@ -80,3 +80,12 @@
 
 
 #settingsView{position:fixed;inset:0;z-index:100;overflow:hidden;background:var(--ui-panel);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}#settingsView[hidden]{display:none!important}
+
+#settingsView .security-tabs{display:inline-flex;gap:4px;padding:4px;margin:0 0 24px;background:var(--ui-bg);border-radius:10px;max-width:100%}
+#settingsView .security-tabs button{padding:10px 16px;min-height:40px;border:0;border-radius:7px;background:transparent;color:var(--ui-muted);font:inherit;line-height:1.4}
+#settingsView .security-tabs button[aria-selected="true"]{background:var(--ui-panel);color:var(--ui-text);font-weight:600;box-shadow:0 1px 4px #00000014}
+#settingsView .security-tabs button[hidden],#settingsView [role="tabpanel"][hidden],#settingsView #createVaultFields[hidden],#settingsView #vaultLimit[hidden]{display:none}
+#settingsView .security-explanation{margin:0 0 20px;max-width:520px;line-height:1.75}
+#settingsView .vault-limit{padding:16px 18px;border-radius:10px;background:var(--ui-bg);color:var(--ui-muted);line-height:1.6}
+
+#settingsView #security .card{box-shadow:none}

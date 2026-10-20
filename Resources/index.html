@@ -154,25 +154,30 @@
       </div>
     </section>
     <section id="security" class="hidden">
-      <h1>密码与隐私</h1><p class="subtitle" id="passwordScope">修改当前书库的密码。我的书库无需密码。</p>
-      <div class="section-title">修改当前书库密码</div>
-      <div class="card"><form id="passwordForm" class="form-grid" autocomplete="off">
-        <label>当前密码<input id="oldPassword" type="password" autocomplete="current-password" required></label>
-        <label>新密码 <span>至少 4 个字符</span><input id="newPassword" type="password" autocomplete="new-password" minlength="4" required></label>
-        <label>确认新密码<input id="confirmPassword" type="password" autocomplete="new-password" minlength="4" required></label>
-        <div class="actions"><button class="primary" type="submit">更新密码</button></div>
-      </form></div>
-      <div id="privateSetup" class="hidden" style="margin-top:24px">
-        <div class="section-title">添加独立书库</div>
-        <div class="card"><form id="privateForm" class="form-grid" autocomplete="off">
-          <p class="help">独立书库有自己的密码、加密密钥、书目和阅读进度。创建后在锁定页输入新密码进入。本版最多 2 个加密书库。</p>
-          <label>当前书库密码<input id="primaryPassword" type="password" autocomplete="off" required></label>
-          <label>独立书库密码 <span>建议使用较长口令</span><input id="privatePassword" type="password" autocomplete="new-password" minlength="4" required></label>
-          <label>确认独立书库密码<input id="confirmPrivatePassword" type="password" autocomplete="new-password" minlength="4" required></label>
-          <div class="actions"><button class="primary" type="submit">创建独立书库</button></div>
+      <h1>密码与隐私</h1><p class="subtitle" id="securitySubtitle">公开书库无需密码，你可以在这里添加加密书库。</p>
+      <div class="security-tabs" role="tablist" aria-label="加密书库管理">
+        <button id="changePasswordTab" type="button" role="tab" aria-controls="changePasswordPanel" aria-selected="false" tabindex="-1" hidden>修改当前书库密码</button>
+        <button id="addVaultTab" type="button" role="tab" aria-controls="privateSetup" aria-selected="true" tabindex="0">添加加密书库</button>
+      </div>
+      <div id="changePasswordPanel" role="tabpanel" aria-labelledby="changePasswordTab" hidden>
+        <p class="help security-explanation">只修改进入设置前已打开的那个加密书库，其他书库不受影响。</p>
+        <div class="card"><form id="passwordForm" class="form-grid" autocomplete="off">
+          <label>当前密码<input id="oldPassword" type="password" autocomplete="current-password" required></label>
+          <label>新密码 <span>至少 4 个字符</span><input id="newPassword" type="password" autocomplete="new-password" minlength="4" required></label>
+          <label>确认新密码<input id="confirmPassword" type="password" autocomplete="new-password" minlength="4" required></label>
+          <div class="actions"><button class="primary" type="submit">修改当前书库密码</button></div>
         </form></div>
       </div>
-      <p class="help" style="margin-top:16px">切出加密书库或加密书籍时，应用会显示我的书库的 PDF。其他书籍保持当前画面。</p>
+      <div id="privateSetup" role="tabpanel" aria-labelledby="addVaultTab">
+        <p class="help security-explanation">每个加密书库都有自己的密码、书籍和阅读进度。创建后在锁定页输入对应密码进入，最多可添加 2 个。</p>
+        <p id="vaultLimit" class="vault-limit" hidden>已达到 2 个加密书库的数量上限。</p>
+        <div class="card" id="createVaultFields"><form id="privateForm" class="form-grid" autocomplete="off">
+          <label>新书库密码 <span>至少 4 个字符</span><input id="privatePassword" type="password" autocomplete="new-password" minlength="4" required></label>
+          <label>确认新书库密码<input id="confirmPrivatePassword" type="password" autocomplete="new-password" minlength="4" required></label>
+          <div class="actions"><button class="primary" type="submit">添加加密书库</button></div>
+        </form></div>
+      </div>
+      <p class="help" style="margin-top:24px">切出加密书库时会自动锁定，并切换到公开内容。</p>
     </section>
     <p class="notice" id="notice" role="status" aria-live="polite"></p>
   </main>

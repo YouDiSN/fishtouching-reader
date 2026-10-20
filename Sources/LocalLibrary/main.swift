@@ -28,7 +28,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     }
     private var activeVaultIndex = 0
     private var vault: Vault { vaults[activeVaultIndex] }
-    private var settingsVaultIndex = 0
+    private var settingsVaultIndex: Int? = nil
     private var secureResumeVaultIndex = 0
     private let pdfLibrary = PDFLibrary()
     private let textLibrary = TextLibrary()
@@ -505,7 +505,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     private func showSettings() {
         guard !settingsVisible, !settingsOpening, !secureTransitioning else { return }
         settingsOpening = true
-        settingsVaultIndex = currentTab == "secure" && vault.isUnlocked ? activeVaultIndex : 0
+        settingsVaultIndex = currentTab == "secure" && vault.isUnlocked ? activeVaultIndex : nil
         let present: () -> Void = { [weak self] in
             guard let self else { return }
             self.savePDFProgress(); self.stopObservingPDF()
@@ -527,7 +527,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     private func closeSettings() {
         settingsVisible = false
         webView.evaluateJavaScript("hideInlineSettings()", completionHandler: nil)
-        settingsVaultIndex = 0
+        settingsVaultIndex = nil
     }
 
     private func settingsIconDataURL() -> String {
@@ -547,8 +547,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
                                       "icon": settingsIconDataURL(),
                                       "iconID": activeIconID,
                                       "hasCustomIcon": FileManager.default.fileExists(atPath: customIconURL.path),
-                                      "passwordScope": settingsVaultIndex == 0 ? "primary" : "private",
-                                      "canCreatePrivate": settingsVaultIndex == 0]
+                                      "passwordScope": settingsVaultIndex.map { "encrypted:\($0)" } ?? "public",
+                                      "canChangePassword": settingsVaultIndex != nil,
+                                      "canCreatePrivate": vaults.contains { !$0.isConfigured }]
         if let customIcon = customIconDataURL() { payload["customIcon"] = customIcon }
         if let message { payload["message"] = message }
         if let error { payload["error"] = error }
@@ -592,6 +593,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
             } catch { sendSettingsState(error: error.localizedDescription) }
         case "restart": restartForNameChange()
         case "changePassword":
+            guard settingsVisible, let settingsVaultIndex else {
+                sendSettingsState(error: "请先打开要修改密码的加密书库，再进入设置。"); return
+            }
             let old = data["old"] as? String ?? ""
             let new = data["new"] as? String ?? ""
             let confirm = data["confirm"] as? String ?? ""
@@ -606,20 +610,18 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
                 sendSettingsState(message: "密码已更新。")
             } catch { sendSettingsState(error: error.localizedDescription) }
         case "createPrivate":
-            guard settingsVaultIndex == 0, let slot = vaults.indices.first(where: { $0 > 0 && !vaults[$0].isConfigured })
+            guard settingsVisible, let slot = vaults.indices.first(where: { !vaults[$0].isConfigured })
             else { sendSettingsState(error: "书库已达到数量上限。"); return }
-            let primary = data["primary"] as? String ?? ""
             let password = data["password"] as? String ?? ""
             let confirm = data["confirm"] as? String ?? ""
             guard password == confirm else { sendSettingsState(error: "两次输入的新密码不一致。"); return }
-            guard primaryVault.matchesPassword(primary) else { sendSettingsState(error: "当前书库密码不正确。"); return }
             guard !vaults.contains(where: { $0.matchesPassword(password) }) else {
                 sendSettingsState(error: "不同书库不能使用相同密码。"); return
             }
             do {
                 try vaults[slot].configure(password: password)
                 vaults[slot].lock()
-                sendSettingsState(message: "独立书库已创建。锁定后输入新密码即可进入。")
+                sendSettingsState(message: "加密书库已创建。锁定后输入新密码即可进入。")
             } catch { sendSettingsState(error: error.localizedDescription) }
         default: break
         }
@@ -704,7 +706,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         cancelWebImport()
         sendWeb(["error":"任务因窗口失焦已取消，请重新预览。", "reset":true])
         webView.evaluateJavaScript("resetSettingsForms()", completionHandler: nil)
-        if settingsVisible && settingsVaultIndex > 0 { closeSettings() }
+        if settingsVisible && settingsVaultIndex != nil { closeSettings() }
         guard window.isVisible, currentTab == "secure", !secureTransitioning else { return }
         if !vault.isUnlocked {
             currentBookID = nil
@@ -723,7 +725,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     private func secureLock(showNormal: Bool = false, openCoverPDF: Bool = false, completion: (() -> Void)? = nil) {
         guard currentTab == "secure", vault.isUnlocked, !secureTransitioning else { return }
         webView.evaluateJavaScript("resetSettingsForms()", completionHandler: nil)
-        if settingsVisible && settingsVaultIndex > 0 { closeSettings() }
+        if settingsVisible && settingsVaultIndex != nil { closeSettings() }
         secureTransitioning = true
         secureResumeID = currentBookID
         secureResumeVaultIndex = activeVaultIndex

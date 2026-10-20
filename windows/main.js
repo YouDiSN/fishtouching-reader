@@ -23,7 +23,7 @@ const MAX_VAULTS = 2;
 const ICONS = new Set(['fish', 'book', 'night', 'leaf', 'coffee', 'star', 'pencil', 'music', 'sunrise', 'cloud']);
 const assets = path.join(__dirname, 'assets');
 let root, vault, vaults, publicLibrary, preferences, window, tray, importPlugins;
-let activeVaultIndex = 0, resumeVaultIndex = 0, settingsVaultIndex = 0;
+let activeVaultIndex = 0, resumeVaultIndex = 0, settingsVaultIndex = null;
 let currentTab = 'normal', currentId = null, resumeId = null, pdf = null;
 let settingsVisible = false, settingsOpening = false;
 let switching = false, dialogOpen = false, quitting = false;
@@ -66,8 +66,9 @@ function sendSettings(extra = {}) {
   const payload = { name: preferences.pendingName || preferences.name || DEFAULT_NAME,
     iconID: preferences.iconID || 'fish', icon: fs.existsSync(currentIcon) ? `data:image/png;base64,${fs.readFileSync(currentIcon).toString('base64')}` : '',
     hasCustomIcon: fs.existsSync(customIcon), customIcon: fs.existsSync(customIcon) ? `data:image/png;base64,${fs.readFileSync(customIcon).toString('base64')}` : undefined,
-    passwordScope: settingsVaultIndex === 0 ? 'primary' : 'private',
-    canCreatePrivate: settingsVaultIndex === 0, ...extra };
+    passwordScope: settingsVaultIndex === null ? 'public' : `encrypted:${settingsVaultIndex}`,
+    canChangePassword: settingsVaultIndex !== null,
+    canCreatePrivate: vaults.some(v => !v.configured), ...extra };
   window.webContents.executeJavaScript(`receiveSettings(${JSON.stringify(payload)})`).catch(() => {});
 }
 function error(message, context = currentTab === 'secure' ? 'library' : 'normal') { send({ type: 'error', context, message: String(message?.message || message) }); }
@@ -403,7 +404,7 @@ async function showSettings() {
   if(settingsVisible||settingsOpening)return;
   settingsOpening=true;
   try {
-  settingsVaultIndex=currentTab==='secure'&&vault.unlocked?activeVaultIndex:0;
+  settingsVaultIndex=currentTab==='secure'&&vault.unlocked?activeVaultIndex:null;
   if(!pdf)await window.webContents.executeJavaScript("window.flushProgress?.()").catch(()=>{});
   await coverSecure(false); await showNormal();
   settingsVisible=true;
@@ -411,7 +412,7 @@ async function showSettings() {
   } finally {settingsOpening=false;}
 }
 function closeSettings() {
-  settingsVisible=false;settingsVaultIndex=0;
+  settingsVisible=false;settingsVaultIndex=null;
   window.webContents.executeJavaScript('hideInlineSettings()').catch(()=>{});
 }
 async function settingsAction(data) {
@@ -432,6 +433,7 @@ async function settingsAction(data) {
         savePreferences(); sendSettings({ restartPrompt: true }); break;
       case 'restart': app.relaunch(); quitting = true; app.quit(); break;
       case 'changePassword': {
+        if (!settingsVisible || settingsVaultIndex === null) throw new Error('请先打开要修改密码的加密书库，再进入设置。');
         if (data.new !== data.confirm) throw new Error('两次输入的新密码不一致。');
         if (vaults.some((v, i) => i !== settingsVaultIndex && v.matchesPassword(data.new || '')))
           throw new Error('不同书库不能使用相同密码。');
@@ -441,14 +443,13 @@ async function settingsAction(data) {
         sendSettings({ message: '密码已更新。' }); break;
       }
       case 'createPrivate': {
-        if (settingsVaultIndex !== 0) throw new Error('请从普通加密书库创建独立书库。');
-        const target = vaults.find((v, i) => i > 0 && !v.configured);
+        if (!settingsVisible) throw new Error('请先打开设置。');
+        const target = vaults.find(v => !v.configured);
         if (!target) throw new Error('书库已达到数量上限。');
         if (data.password !== data.confirm) throw new Error('两次输入的新密码不一致。');
-        if (!vaults[0].matchesPassword(data.primary || '')) throw new Error('当前书库密码不正确。');
         if (vaults.some(v => v.matchesPassword(data.password || ''))) throw new Error('不同书库不能使用相同密码。');
         target.configure(data.password || ''); target.lock();
-        sendSettings({ message: '独立书库已创建。锁定后输入新密码即可进入。' }); break;
+        sendSettings({ message: '加密书库已创建。锁定后输入新密码即可进入。' }); break;
       }
     }
   } catch (e) { sendSettings({ error: e.message }); }
@@ -480,7 +481,7 @@ function createWindow() {
   window.webContents.on('will-navigate', event => event.preventDefault());
   window.on('blur',()=>{cancelWebImport();sendWeb({error:'窗口失焦，任务已取消，请重新预览。',reset:true});});
   window.webContents.on('did-finish-load', () => { if (!pdf) send(!vault.configured ? { type: 'setup', iconID: preferences.iconID } : currentTab === 'secure' ? (vault.unlocked ? secureState() : { type: 'locked' }) : normalState()); });
-  window.on('blur', () => { window.webContents.executeJavaScript('window.resetSettingsForms?.()').catch(()=>{});if(settingsVisible&&settingsVaultIndex>0)closeSettings();coverSecure(); });
+  window.on('blur', () => { window.webContents.executeJavaScript('window.resetSettingsForms?.()').catch(()=>{});if(settingsVisible&&settingsVaultIndex!==null)closeSettings();coverSecure(); });
   window.on('close', event => { if (!quitting) { event.preventDefault(); coverSecure().finally(() => window.hide()); } });
   const loaded = window.loadFile(path.join(assets, 'index.html'));
   const installed = process.platform === 'win32' && app.isPackaged && fs.existsSync(path.join(process.resourcesPath, 'app-update.yml'));
@@ -597,7 +598,21 @@ async function runSmoke() {
   if (currentTab !== 'normal' || pdf || library !== '我的书库') throw new Error('Secure library did not switch to the ordinary library.');
   smokeStage = 'route independent vault passwords'; traceSmoke(smokeStage); process.stdout.write(`${smokeStage}\n`);
   if (vaults.length !== MAX_VAULTS) throw new Error('Vault limit mismatch.');
-  vaults[1].configure('second-space-pass');
+  await showNormal(); await showSettings();
+  if(settingsVaultIndex!==null)throw Error('Public settings selected an encrypted vault');
+  await new Promise(resolve=>setTimeout(resolve,100));
+  if(!await window.webContents.executeJavaScript("document.getElementById('changePasswordTab').hidden&&!document.getElementById('privateSetup').hidden"))throw Error('Public settings exposed password change');
+  await settingsAction({action:'changePassword',old:'test4321',new:'must-not-change',confirm:'must-not-change'});
+  if(!vaults[0].matchesPassword('test4321')||vaults[0].matchesPassword('must-not-change'))throw Error('Public settings changed encrypted password');
+  await settingsAction({action:'createPrivate',password:'123',confirm:'123'});
+  if(vaults[1].configured)throw Error('Short password accepted');
+  await settingsAction({action:'createPrivate',password:'test4321',confirm:'test4321'});
+  if(vaults[1].configured)throw Error('Duplicate vault password accepted');
+  await settingsAction({action:'createPrivate',password:'second-space-pass',confirm:'second-space-pass'});
+  if(!vaults[1].configured||vaults[1].unlocked)throw Error('Public settings could not create a locked encrypted vault');
+  await settingsAction({action:'createPrivate',password:'third-space-pass',confirm:'third-space-pass'});
+  if(vaults.some(v=>v.matchesPassword('third-space-pass')))throw Error('Vault capacity limit bypassed');
+  closeSettings();vaults[1].unlock('second-space-pass');
   vaults[1].add({ title: '另一份虚构短篇', kind: 'text', data: Buffer.from(JSON.stringify({ paragraphs: ['另一份虚构短篇'] })), paragraphs: ['另一份虚构短篇'] });
   vaults[1].lock();
   await showSecure();
@@ -611,6 +626,23 @@ async function runSmoke() {
   await showSettings();
   const singlePage=await window.webContents.executeJavaScript('document.querySelectorAll("iframe").length===0&&!document.getElementById("settingsView").hidden');
   if(!singlePage||BrowserWindow.getAllWindows().length!==1||vault.unlocked)throw Error('Settings did not stay in one document or vault stayed unlocked');
+  await new Promise(resolve=>setTimeout(resolve,100));
+  const passwordTabs=await window.webContents.executeJavaScript(`(()=>{
+    document.getElementById('navSecurity').click();
+    const change=document.getElementById('changePasswordTab'),add=document.getElementById('addVaultTab');
+    if(change.hidden||document.getElementById('changePasswordPanel').hidden)return false;
+    document.getElementById('oldPassword').value='temporary';add.click();
+    if(!document.getElementById('changePasswordPanel').hidden||document.getElementById('privateSetup').hidden||document.getElementById('oldPassword').value)return false;
+    if(document.getElementById('vaultLimit').hidden||!document.getElementById('createVaultFields').hidden)return false;
+    add.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}));
+    return change.getAttribute('aria-selected')==='true'&&!document.getElementById('changePasswordPanel').hidden;
+  })()`);
+  if(!passwordTabs)throw Error('Password tabs or capacity state incorrect');
+  await settingsAction({action:'changePassword',old:'test4321',new:'fixture-new-pass',confirm:'fixture-new-pass'});
+  if(!vaults[0].matchesPassword('fixture-new-pass')||!vaults[1].matchesPassword('second-space-pass'))throw Error('Password change affected the wrong vault');
+  await settingsAction({action:'changePassword',old:'fixture-new-pass',new:'test4321',confirm:'test4321'});
+  await window.webContents.executeJavaScript('document.getElementById("passwordUpdated").close()');
+
   await window.webContents.executeJavaScript(`(()=>{document.getElementById('settingsView').__reuseMarker=1;document.querySelector('#settingsView [data-theme="light"]').click();document.getElementById('navFont').click();const size=document.querySelector('#settingsView [data-size]');size.value='22';size.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   for(let i=0;i<40&&(preferences.readerTheme!=='light'||preferences.readerFontSize!==22);i++)await new Promise(resolve=>setTimeout(resolve,100));
   if(preferences.readerTheme!=='light'||preferences.readerFontSize!==22)throw Error('Settings did not save preferences');
@@ -619,6 +651,11 @@ async function runSmoke() {
   if(!reused)throw Error('Settings view was recreated');closeSettings();
   await showSecure();await handleAction({action:'unlock',password:'second-space-pass'});await showSettings();
   if(settingsVaultIndex!==1||vault.unlocked)throw Error('Independent settings scope or lock failed');
+  await settingsAction({action:'changePassword',old:'second-space-pass',new:'second-new-pass',confirm:'second-new-pass'});
+  if(!vaults[1].matchesPassword('second-new-pass')||!vaults[0].matchesPassword('test4321'))throw Error('Second vault password change affected the wrong vault');
+  await settingsAction({action:'changePassword',old:'second-new-pass',new:'second-space-pass',confirm:'second-space-pass'});
+  await window.webContents.executeJavaScript('document.getElementById("passwordUpdated").close()');
+
   await window.webContents.executeJavaScript('document.getElementById("oldPassword").value="temporary-smoke-input"');
   window.emit('blur');await new Promise(resolve=>setTimeout(resolve,150));
   const cleared=await window.webContents.executeJavaScript('document.getElementById("settingsView").hidden&&document.getElementById("oldPassword").value===""');
