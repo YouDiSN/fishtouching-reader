@@ -1,0 +1,37 @@
+:root {
+  --ui-bg:#101716; --ui-panel:#1a2520; --ui-input:#15201c;
+  --ui-text:#e8eee9; --ui-muted:#afc9b9; --ui-border:#496153;
+  --ui-soft:#293a33; --ui-accent:#438868; --ui-highlight:#bfe0c9;
+}
+:root[data-reader-theme="paper"] {
+  color-scheme:light; --ui-bg:#f4eddf; --ui-panel:#fff9ed; --ui-input:#fffcf5;
+  --ui-text:#352d24; --ui-muted:#6e604e; --ui-border:#bbab90;
+  --ui-soft:#e3d7c2; --ui-accent:#795d3c; --ui-highlight:#694b2c;
+}
+:root[data-reader-theme="light"] {
+  color-scheme:light; --ui-bg:#f5f6f8; --ui-panel:#ffffff; --ui-input:#ffffff;
+  --ui-text:#202733; --ui-muted:#586477; --ui-border:#b8c2d1;
+  --ui-soft:#e2e8f1; --ui-accent:#365fa1; --ui-highlight:#294f8b;
+}
+:root[data-reader-theme="midnight"] {
+  color-scheme:dark; --ui-bg:#101827; --ui-panel:#19253a; --ui-input:#121e31;
+  --ui-text:#e3eaf5; --ui-muted:#a9bbd4; --ui-border:#425775;
+  --ui-soft:#293d5c; --ui-accent:#4069a2; --ui-highlight:#bbd4ff;
+}
+:root[data-reader-theme="graphite"] {
+  color-scheme:dark; --ui-bg:#191a1d; --ui-panel:#24262a; --ui-input:#1c1e22;
+  --ui-text:#ececee; --ui-muted:#b6b8c0; --ui-border:#53565f;
+  --ui-soft:#373a42; --ui-accent:#626875; --ui-highlight:#e0e3ee;
+}
+[data-reading-appearance] { display:grid; gap:10px; min-width:0; }
+[data-reading-appearance] label { color:var(--ui-muted); font-size:13px; }
+[data-reading-appearance] select, [data-reading-appearance] input {
+  width:100%; min-width:0; box-sizing:border-box; font:inherit; padding:9px 10px;
+  border:1px solid var(--ui-border); border-radius:8px; background:var(--ui-input); color:var(--ui-text);
+}
+.appearance-hint { margin:0; font-size:12px; color:var(--ui-muted); line-height:1.6; }
+.appearance-preview { margin:0; border:1px solid var(--ui-border); background:var(--ui-bg); color:var(--ui-text); border-radius:8px; padding:14px; font:17px/1.8 var(--reader-font, "Songti SC"), "Noto Serif CJK SC", serif; }
+/* On light themes, secondary selections retain readable foregrounds. */
+.chapter-entry:hover, .chapter-entry[aria-current="true"], .nav button.active { color:var(--ui-text); }
+:focus-visible { outline:2px solid var(--ui-highlight); outline-offset:2px; }
+.book-item .remove-recent:hover, .book-item .remove-recent:focus-visible, .icon-choice.active { color:var(--ui-text); }

@@ -153,6 +153,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage) {
         guard let data = message.body as? [String: Any], let action = data["action"] as? String else { return }
+        if handleReadingAppearance(action, data: data, source: message.webView) { return }
         if message.name == "settings" { handleSettingsAction(action, data: data); return }
         if ["selectNormal", "selectSecure", "unlock", "lock", "settings", "read", "openPDF", "library", "toggleImportPlugin", "removeImportPlugin"].contains(action) { cancelWebImport() }
         switch action {
@@ -662,6 +663,35 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         helper.standardOutput = FileHandle.nullDevice
         helper.standardError = FileHandle.nullDevice
         try helper.run()
+    }
+
+    private func handleReadingAppearance(_ action: String, data: [String: Any], source: WKWebView?) -> Bool {
+        guard ["readingPreferences", "saveReadingPreferences", "listSystemFonts"].contains(action) else { return false }
+        func deliver(_ function: String, _ payload: [String: Any], to view: WKWebView?) {
+            guard let bytes = try? JSONSerialization.data(withJSONObject: payload),
+                  let json = String(data: bytes, encoding: .utf8) else { return }
+            view?.evaluateJavaScript("window.\(function)?.(\(json))", completionHandler: nil)
+        }
+        if action == "listSystemFonts" {
+            let fonts = NSFontManager.shared.availableFontFamilies.filter { !$0.hasPrefix(".") }.sorted()
+            deliver("receiveSystemFonts", ["fonts": fonts], to: source)
+            return true
+        }
+        let defaults = UserDefaults.standard
+        if action == "saveReadingPreferences" {
+            if let theme = data["theme"] as? String, ["forest", "paper", "light", "midnight", "graphite"].contains(theme) {
+                defaults.set(theme, forKey: "readerTheme")
+            }
+            if let font = data["font"] as? String, font.isEmpty || NSFontManager.shared.availableFontFamilies.contains(font) {
+                defaults.set(font, forKey: "readerFont")
+            }
+        }
+        let payload = ["theme": defaults.string(forKey: "readerTheme") ?? "forest", "font": defaults.string(forKey: "readerFont") ?? ""]
+        if action == "saveReadingPreferences" {
+            deliver("receiveReadingPreferences", payload, to: webView)
+            deliver("receiveReadingPreferences", payload, to: settingsWebView)
+        } else { deliver("receiveReadingPreferences", payload, to: source) }
+        return true
     }
 
     private func sendError(_ message: String, context: String) {

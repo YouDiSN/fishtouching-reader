@@ -12,7 +12,7 @@ function reader() {
   const context = vm.createContext({
     document: { getElementById: () => element },
     localStorage: { getItem: () => null },
-    window: {}, clearTimeout() {},
+    window: { addEventListener() {} }, clearTimeout() {},
   });
   vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], context);
   return code => JSON.parse(vm.runInContext(`JSON.stringify(${code})`, context));

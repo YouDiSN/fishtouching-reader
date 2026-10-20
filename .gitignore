@@ -9,3 +9,5 @@ windows/node_modules/
 windows/dist/
 windows/assets/index.html
 windows/assets/settings.html
+windows/assets/reader-appearance.js
+windows/assets/reader-appearance.css

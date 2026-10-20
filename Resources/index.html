@@ -7,33 +7,33 @@
 <style>
   :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
   * { box-sizing: border-box; }
-  body { margin: 0; background: #101716; color: #e8eee9; }
+  body { margin: 0; background: var(--ui-bg); color: var(--ui-text); }
   button, input, select { font: inherit; }
-  button { cursor: pointer; border: 0; border-radius: 9px; padding: 10px 16px; background: #438868; color: #fff; }
-  button.secondary { color: #dce9df; background: #293a33; }
-  button.ghost { background: transparent; color: #afc9b9; padding: 7px 10px; }
-  input { width: 100%; padding: 12px 14px; border: 1px solid #3c5047; border-radius: 9px; background: #15201c; color: #e8eee9; outline: none; }
-  input:focus { border-color: #67ac84; }
-  select { border: 1px solid #3c5047; border-radius: 9px; padding: 8px 10px; background: #15201c; color: #e8eee9; cursor: pointer; }
+  button { cursor: pointer; border: 0; border-radius: 9px; padding: 10px 16px; background: var(--ui-accent); color: #fff; }
+  button.secondary { color: var(--ui-text); background: var(--ui-soft); }
+  button.ghost { background: transparent; color: var(--ui-muted); padding: 7px 10px; }
+  input { width: 100%; padding: 12px 14px; border: 1px solid var(--ui-border); border-radius: 9px; background: var(--ui-input); color: var(--ui-text); outline: none; }
+  input:focus { border-color: var(--ui-highlight); }
+  select { border: 1px solid var(--ui-border); border-radius: 9px; padding: 8px 10px; background: var(--ui-input); color: var(--ui-text); cursor: pointer; }
   .shell { max-width: 860px; margin: 0 auto; padding: 40px 32px 70px; }
   .top { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
   .tabs { display: flex; gap: 8px; margin-bottom: 28px; }
   .global-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
   .global-header .tabs { margin-bottom: 0; }
-  .tabs button { background: #26362e; color: #b9cbbd; }
-  .tabs button.active { background: #438868; color: white; }
+  .tabs button { background: var(--ui-soft); color: var(--ui-muted); }
+  .tabs button.active { background: var(--ui-accent); color: white; }
   .tabs button.icon-tab { width: 42px; height: 42px; padding: 10px; display: inline-flex; align-items: center; justify-content: center; }
   .icon-tab svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   .settings-button { width: 42px; height: 42px; padding: 10px; display: inline-flex; align-items: center; justify-content: center; }
   .settings-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   .setup-icons { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
-  .setup-icon { padding: 6px; background: #26362e; border: 1px solid #486352; }
-  .setup-icon.active { border-color: #96daa8; box-shadow: 0 0 0 2px #96daa855; }
+  .setup-icon { padding: 6px; background: var(--ui-soft); border: 1px solid var(--ui-border); }
+  .setup-icon.active { border-color: var(--ui-highlight); box-shadow: 0 0 0 2px #96daa855; }
   .setup-icon img { width: 100%; aspect-ratio: 1; object-fit: contain; }
   h1 { font-size: 26px; letter-spacing: -.03em; margin: 0 0 8px; }
   h2 { font-size: 17px; margin: 0 0 14px; }
-  .muted { color: #a0b3a7; font-size: 13px; }
-  .card { background: #1a2520; border: 1px solid #34483d; border-radius: 14px; box-shadow: 0 8px 25px rgba(0,0,0,.14); }
+  .muted { color: var(--ui-muted); font-size: 13px; }
+  .card { background: var(--ui-panel); border: 1px solid var(--ui-border); border-radius: 14px; box-shadow: 0 8px 25px rgba(0,0,0,.14); }
   .lock { max-width: 410px; margin: 13vh auto 0; padding: 30px; }
   .lock p { line-height: 1.6; margin: 0 0 24px; }
   .stack { display: grid; gap: 12px; }
@@ -50,14 +50,14 @@
   .book-item { position: relative; padding: 18px 52px 18px 20px; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
   .book-item.recent-item { padding-right: 105px; }
   .book-item > div:first-child { min-width: 0; flex: 1; }
-  .book-item .remove-book { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; padding: 0; border-radius: 7px; background: transparent; color: #b9cbbd; font-size: 22px; line-height: 1; opacity: 0; pointer-events: none; }
-  .book-item .remove-recent { position: absolute; top: 8px; right: 8px; padding: 5px 8px; border-radius: 7px; background: transparent; color: #afc9b9; font-size: 12px; }
-  .book-item .remove-recent:hover, .book-item .remove-recent:focus-visible { background: #293a33; color: #fff; }
+  .book-item .remove-book { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; padding: 0; border-radius: 7px; background: transparent; color: var(--ui-muted); font-size: 22px; line-height: 1; opacity: 0; pointer-events: none; }
+  .book-item .remove-recent { position: absolute; top: 8px; right: 8px; padding: 5px 8px; border-radius: 7px; background: transparent; color: var(--ui-muted); font-size: 12px; }
+  .book-item .remove-recent:hover, .book-item .remove-recent:focus-visible { background: var(--ui-soft); color: #fff; }
   .book-item:hover .remove-book, .book-item:focus-within .remove-book { opacity: 1; pointer-events: auto; }
   .book-item .remove-book:hover, .book-item .remove-book:focus-visible { background: #713e3e; color: #fff; }
-  .book-item .transfer-book { background: #293a33; color: #dce9df; font-size: 12px; padding: 7px 9px; }
+  .book-item .transfer-book { background: var(--ui-soft); color: var(--ui-text); font-size: 12px; padding: 7px 9px; }
   @media (hover: none) { .book-item .remove-book { opacity: 1; pointer-events: auto; } }
-  .confirm-dialog { width: min(420px, calc(100vw - 36px)); padding: 25px; border: 1px solid #496153; border-radius: 15px; background: #1a2520; color: #e8eee9; box-shadow: 0 24px 70px #0009; }
+  .confirm-dialog { width: min(420px, calc(100vw - 36px)); padding: 25px; border: 1px solid var(--ui-border); border-radius: 15px; background: var(--ui-panel); color: var(--ui-text); box-shadow: 0 24px 70px #0009; }
   .confirm-dialog::backdrop { background: #0009; }
   .confirm-dialog h2 { margin: 0 0 12px; }
   .confirm-dialog p { line-height: 1.65; overflow-wrap: anywhere; }
@@ -65,65 +65,67 @@
   .confirm-dialog .danger { background: #9a4b4b; }
   .book-title { overflow-wrap: anywhere; font-size: 14px; line-height: 1.55; }
   .book-item .muted { margin-top: 5px; }
-  .progress-track { height: 5px; margin-top: 8px; border-radius: 5px; background: #31443a; overflow: hidden; }
-  .progress-track span { display: block; height: 100%; border-radius: inherit; background: #66aa83; }
+  .progress-track { height: 5px; margin-top: 8px; border-radius: 5px; background: var(--ui-soft); overflow: hidden; }
+  .progress-track span { display: block; height: 100%; border-radius: inherit; background: var(--ui-accent); }
   .message { margin: 18px 0; padding: 12px 15px; background: #473526; border-radius: 9px; color: #f5d6a7; }
   .preview { padding: 24px; margin-top: 28px; }
-  .sample { background: #121c18; padding: 20px; border-radius: 10px; white-space: pre-wrap; line-height: 1.9; max-height: 320px; overflow: auto; font-family: serif; }
+  .sample { background: var(--ui-input); padding: 20px; border-radius: 10px; white-space: pre-wrap; line-height: 1.9; max-height: 320px; overflow: auto; font-family: serif; }
   .plugin-badges { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
-  .plugin-badge { display: inline-block; padding: 3px 7px; border-radius: 6px; background: #294737; color: #b6dfc3; font-size: 11px; }
+  .plugin-badge { display: inline-block; padding: 3px 7px; border-radius: 6px; background: var(--ui-soft); color: var(--ui-highlight); font-size: 11px; }
   .plugin-badge.community { background: #413b29; color: #e0cf9b; }
   .plugin-dialog { width: min(680px,calc(100vw - 36px)); max-height: 85vh; padding: 0; overflow: hidden; }
-  .plugin-header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px 20px; border-bottom:1px solid #496153; }
+  .plugin-header { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px 20px; border-bottom:1px solid var(--ui-border); }
   .plugin-header h2 { margin:0; }
   .plugin-close { display:grid; place-items:center; width:36px; height:36px; padding:0; flex-shrink:0; border-radius:8px; }
   .plugin-close svg { width:20px; height:20px; pointer-events:none; }
   .plugin-body { padding:20px; max-height:calc(85vh - 80px); overflow:auto; box-sizing:border-box; }
-  .plugin-entry { padding: 16px 0; border-bottom: 1px solid #34483d; }
+  .plugin-entry { padding: 16px 0; border-bottom: 1px solid var(--ui-border); }
   .plugin-entry h3 { margin: 0 0 8px; font-size: 16px; overflow-wrap: anywhere; }
   .plugin-entry p { margin: 7px 0; }
   .plugin-dialog .plugin-entry .row { margin-top: 0; justify-content: space-between; }
   .plugin-entry .row h3 { flex: 1; margin: 0; }
-  .plugin-entry details { color: #a0b3a7; font-size: 12px; }
+  .plugin-entry details { color: var(--ui-muted); font-size: 12px; }
   .plugin-entry summary { cursor: pointer; }
-  .plugin-entry .plugin-status { white-space: nowrap; font-size: 12px; color: #a0b3a7; }
-  .reader-head { position: sticky; top: 0; z-index: 2; background: rgba(16,23,22,.96); backdrop-filter: blur(12px); border-bottom: 1px solid #34483d; padding: 14px 24px; display: flex; gap: 12px; align-items: center; }
+  .plugin-entry .plugin-status { white-space: nowrap; font-size: 12px; color: var(--ui-muted); }
+  .reader-head { position: sticky; top: 0; z-index: 2; background: var(--ui-bg); backdrop-filter: blur(12px); border-bottom: 1px solid var(--ui-border); padding: 14px 24px; display: flex; gap: 12px; align-items: center; }
   .reader-head .tabs { margin: 0; }
-  .reader-head .title { flex: 1; min-width: 0; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; font-size: 13px; color: #acc1b1; }
+  .reader-head .title { flex: 1; min-width: 0; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; font-size: 13px; color: var(--ui-muted); }
   .reader { max-width: 760px; margin: 0 auto; padding: 28px 40px 110px; }
-  .reader-text { font-family: "Songti SC", "Noto Serif CJK SC", serif; font-size: var(--font-size, 19px); line-height: 1.95; color: #e5e7dc; }
+  .reader-text { font-family: var(--reader-font, "Songti SC"), "Noto Serif CJK SC", serif; font-size: var(--font-size, 19px); line-height: 1.95; color: var(--ui-text); }
   .reader-text p { margin: 0 0 1.05em; overflow-wrap: anywhere; }
   button:disabled { opacity: .4; cursor: default; }
   [hidden] { display: none !important; }
   .reader-menu { position: relative; flex-shrink: 0; }
-  .reader-menu summary { cursor: pointer; list-style: none; color: #afc9b9; padding: 9px; border-radius: 8px; }
+  .reader-menu summary { cursor: pointer; list-style: none; color: var(--ui-muted); padding: 9px; border-radius: 8px; }
   .reader-menu summary::-webkit-details-marker { display: none; }
-  .reader-menu[open] summary { background: #293a33; }
-  .reader-popover { position: absolute; right: 0; top: 46px; width: 190px; padding: 18px; display: grid; gap: 12px; background: #1a2520; border: 1px solid #496153; border-radius: 12px; box-shadow: 0 12px 35px #0006; }
-  .reader-popover label { font-size: 13px; color: #afc9b9; }
+  .reader-menu[open] summary { background: var(--ui-soft); }
+  .reader-popover { position: absolute; right: 0; top: 46px; width: min(300px,calc(100vw - 28px)); max-height: calc(100vh - 170px); overflow: auto; padding: 18px; display: grid; gap: 12px; background: var(--ui-panel); border: 1px solid var(--ui-border); border-radius: 12px; box-shadow: 0 12px 35px #0006; }
+  .reader-popover label { font-size: 13px; color: var(--ui-muted); }
   .reader-popover output { float: right; }
-  .reader-dock { position: fixed; bottom: 0; left: 0; right: 0; z-index: 3; padding: 12px 24px 10px; background: rgba(16,23,22,.98); border-top: 1px solid #34483d; }
+  .reader-dock { position: fixed; bottom: 0; left: 0; right: 0; z-index: 3; padding: 12px 24px 10px; background: var(--ui-bg); border-top: 1px solid var(--ui-border); }
   .reader-nav { display: flex; gap: 14px; align-items: center; max-width: 1000px; margin: auto; }
   .chapter-current { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .page-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   #percent { min-width: 54px; text-align: right; }
   .reader-dock .progress-track { max-width: 1000px; margin: 10px auto 0; height: 3px; }
-  .chapter-heading { font-weight: bold; font-size: 1.2em; color: #bfe0c9; }
-  .chapter-dialog { position: fixed; margin: 0; inset: 0 auto 0 0; height: 100dvh; max-height: 100%; width: min(380px,90vw); border: 0; border-right: 1px solid #496153; padding: 24px; background: #17231e; color: #e8eee9; }
+  .chapter-heading { font-weight: bold; font-size: 1.2em; color: var(--ui-highlight); }
+  .chapter-dialog { position: fixed; margin: 0; inset: 0 auto 0 0; height: 100dvh; max-height: 100%; width: min(380px,90vw); border: 0; border-right: 1px solid var(--ui-border); padding: 24px; background: var(--ui-panel); color: var(--ui-text); }
   .chapter-dialog::backdrop { background: #0007; }
   .chapter-dialog[open] { display: flex; flex-direction: column; gap: 16px; }
   .chapter-dialog h2 { margin: 0; }
   #chapterList { overflow: auto; flex: 1; }
-  .chapter-entry { display: block; width: 100%; text-align: left; background: transparent; color: #b9cbbd; line-height: 1.6; margin: 3px 0; }
-  .chapter-entry:hover, .chapter-entry[aria-current="true"] { background: #294136; color: white; }
+  .chapter-entry { display: block; width: 100%; text-align: left; background: transparent; color: var(--ui-muted); line-height: 1.6; margin: 3px 0; }
+  .chapter-entry:hover, .chapter-entry[aria-current="true"] { background: var(--ui-soft); color: white; }
   .chapter-entry.volume { font-weight: bold; }
   .jump-return { position: fixed; bottom: 100px; right: 24px; z-index: 3; box-shadow: 0 4px 20px #0007; }
-  #pageForm label { display: block; margin-bottom: 10px; color: #afc9b9; }
+  #pageForm label { display: block; margin-bottom: 10px; color: var(--ui-muted); }
   @media(max-width:700px) { .reader-head { padding: 10px 12px; gap: 6px; flex-wrap: wrap; } .reader-head .title { flex-basis: 100%; order: 2; } .reader-dock { padding: 10px 12px; } .reader-nav { flex-wrap: wrap; gap: 6px; } .chapter-current { flex-basis: calc(100% - 70px); order: 0; } #percent { order: 1; } .page-controls { order: 2; width: 100%; justify-content: space-between; } .jump-return { bottom: 130px; } }
   .reader-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 40px; }
   .reader-controls { display: flex; align-items: center; gap: 4px; }
   @media(max-width:700px) { .shell { padding: 24px 18px; } .reader { padding: 18px 24px 160px; } }
 </style>
+<link rel="stylesheet" href="reader-appearance.css">
+<script src="reader-appearance.js" defer></script>
 </head>
 <body><main id="app"></main><dialog id="removeDialog" class="confirm-dialog" aria-labelledby="removeTitle"><h2 id="removeTitle">确认移除？</h2><p id="removeBookTitle"></p><p class="muted">将从书库移除，并删除应用保存的副本和阅读进度。本地导入的原始文件不会被删除。</p><div class="row"><button type="button" class="secondary" id="cancelRemove">取消</button><button type="button" class="danger" id="confirmRemove">确认移除</button></div></dialog>
 <dialog id="transferDialog" class="confirm-dialog" aria-labelledby="transferTitle"><h2 id="transferTitle">移至另一书库</h2><p id="transferBookTitle"></p><p class="muted">输入另一书库的密码。书籍和阅读进度会先复制并验证，再从当前书库移除。</p><form id="transferForm"><input id="transferPassword" type="password" autocomplete="off" placeholder="另一书库密码" required><div class="row"><button type="button" class="secondary" id="cancelTransfer">取消</button><button type="submit">确认移动</button></div></form></dialog>
@@ -359,7 +361,7 @@ function renderBook() {
   const saved=Math.max(0,Math.min(book.paragraphs.length-1,book.paragraph||0));
   chunk=Math.floor(saved/chunkSize);
   app.innerHTML=`<div class="reader-head">${tabs(state.tab||'secure')}<button class="secondary" id="back">书库</button><div class="title">${h(title(state.encodedTitle))}</div>
-    <details class="reader-menu" id="readingSettings"><summary>阅读设置</summary><div class="reader-popover"><label>字号 <output id="fontLabel">${fontSize}</output></label><div class="row"><button class="secondary" id="smaller" aria-label="缩小字号">A−</button><button class="secondary" id="larger" aria-label="放大字号">A＋</button></div><label for="layout">正文排版</label><select id="layout"><option value="clean">整理排版</option><option value="raw">原始排版</option></select></div></details>
+    <details class="reader-menu" id="readingSettings"><summary>阅读设置</summary><div class="reader-popover"><label>字号 <output id="fontLabel">${fontSize}</output></label><div class="row"><button class="secondary" id="smaller" aria-label="缩小字号">A−</button><button class="secondary" id="larger" aria-label="放大字号">A＋</button></div><div data-reading-appearance></div><label for="layout">正文排版</label><select id="layout"><option value="clean">整理排版</option><option value="raw">原始排版</option></select></div></details>
     <details class="reader-menu"><summary aria-label="更多操作">···</summary><div class="reader-popover">${state.tab==='normal'?'':`<button class="ghost" id="exportTxt">导出 TXT</button>${state.hasEPUB?'<button class="ghost" id="exportEPUB">导出原始 EPUB</button>':''}`}<button class="ghost" id="settings">应用设置</button></div></details></div>
     <div class="reader"><div class="reader-text" id="text"></div></div>
     <footer class="reader-dock"><div class="reader-nav"><button class="ghost chapter-current" id="directory" title="打开章节目录">目录</button><div class="page-controls"><button class="secondary" id="prev">上一页</button><button class="ghost" id="page" aria-label="跳转页码"></button><button class="secondary" id="next">下一页</button></div><span class="muted" id="percent">0%</span></div><div class="progress-track" id="readingProgress" role="progressbar" aria-label="整本阅读进度" aria-valuemin="0" aria-valuemax="100"><span></span></div></footer>
@@ -370,6 +372,7 @@ function renderBook() {
   bindTabs();
   if(document.getElementById('exportTxt')) document.getElementById('exportTxt').onclick=()=>post('exportText',{id:state.id});
   if(document.getElementById('exportEPUB')) document.getElementById('exportEPUB').onclick=()=>post('exportEPUB',{id:state.id});
+  window.ReaderAppearance?.mount();
   const layout=document.getElementById('layout'); layout.value=layoutMode;
   layout.onchange=()=>{
     const position=currentProgress(); layoutMode=layout.value; localStorage.setItem('layoutMode',layoutMode);
@@ -438,6 +441,11 @@ function buildDisplayParagraphs() {
 }
 function pageCount(){return Math.max(1,Math.ceil(book.paragraphs.length/chunkSize));}
 function readingTop(){return (document.querySelector('.reader-head')?.getBoundingClientRect().bottom||70)+16;}
+let appearancePosition = null;
+window.addEventListener('reader-appearance-will-change',()=>{appearancePosition=currentProgress();});
+window.addEventListener('reader-appearance-changed',()=>{
+  if(book && appearancePosition) showChunk(chunk,appearancePosition.paragraph,appearancePosition.fraction);
+});
 function changeFont(delta) {
   const position=currentProgress();fontSize=Math.max(15,Math.min(30,fontSize+delta));localStorage.setItem('fontSize',fontSize);
   document.getElementById('fontLabel').textContent=fontSize;showChunk(chunk,position?.paragraph,position?.fraction);

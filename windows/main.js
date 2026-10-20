@@ -260,7 +260,30 @@ async function chooseIcon() {
     if (!settingsWindow) window.webContents.executeJavaScript("selectSetupIcon('custom')").catch(() => {});
   } finally { dialogOpen = false; }
 }
+async function handleReadingAppearance(data, target) {
+  if (!['readingPreferences','saveReadingPreferences','listSystemFonts'].includes(data?.action)) return false;
+  const deliver=(view, fn, payload)=>{if(view&&!view.isDestroyed())view.webContents.executeJavaScript(`window.${fn}?.(${JSON.stringify(payload)})`).catch(()=>{});};
+  if(data.action==='listSystemFonts') {
+    try { deliver(target,'receiveSystemFonts',{fonts:await require('./reading-appearance').systemFonts()}); }
+    catch(e) { deliver(target,'receiveSystemFonts',{error:e.message}); }
+    return true;
+  }
+  if(data.action==='saveReadingPreferences') {
+    if(['forest','paper','light','midnight','graphite'].includes(data.theme))preferences.readerTheme=data.theme;
+    if(typeof data.font==='string') {
+      if(!data.font) preferences.readerFont='';
+      else { try { if((await require('./reading-appearance').systemFonts()).includes(data.font))preferences.readerFont=data.font; } catch(e) { deliver(target,'receiveSystemFonts',{error:e.message}); } }
+    }
+    savePreferences();
+  }
+  const payload={theme:preferences.readerTheme||'forest',font:preferences.readerFont||''};
+  if(data.action==='saveReadingPreferences') {
+    deliver(window,'receiveReadingPreferences',payload);deliver(settingsWindow,'receiveReadingPreferences',payload);
+  } else deliver(target,'receiveReadingPreferences',payload);
+  return true;
+}
 async function handleAction(data) {
+  if(await handleReadingAppearance(data, window))return;
   const action = data?.action;
   if(["selectNormal","selectSecure","unlock","lock","settings","read","library","toggleImportPlugin","removeImportPlugin"].includes(action))cancelWebImport();
   try {
@@ -382,6 +405,7 @@ function showSettings() {
   settingsWindow.loadFile(path.join(assets, 'settings.html'));
 }
 async function settingsAction(data) {
+  if(await handleReadingAppearance(data, settingsWindow))return;
   try {
     switch (data?.action) {
       case 'ready': sendSettings(); break;
@@ -471,11 +495,31 @@ async function runSmoke() {
   if (!importPlugins.parse(path.join(demo, '摸鱼.txt')).paragraphs.length) throw new Error('Official TXT plugin did not parse.');
   await window.webContents.executeJavaScript("document.getElementById('closePlugins').click()");
   const body = fs.readFileSync(path.join(demo, '摸鱼.txt'));
-  const entry = vault.add({ title: '窗边的橘猫', kind: 'text', data: Buffer.from(JSON.stringify({ paragraphs: paragraphs(body) })), paragraphs: paragraphs(body) });
+  const smokeParagraphs = Array.from({length:80},()=>paragraphs(body)).flat();
+  const entry = vault.add({ title: '窗边的橘猫', kind: 'text', data: Buffer.from(JSON.stringify({ paragraphs: smokeParagraphs })), paragraphs: smokeParagraphs });
   smokeStage = 'render secure TXT'; traceSmoke(smokeStage); process.stdout.write(`${smokeStage}\n`);
   await openEntry(entry.id, true);
   const reading = await window.webContents.executeJavaScript("document.getElementById('text')?.textContent.includes('橘猫')");
   if (!reading) throw new Error('Secure reader did not render.');
+  smokeStage = 'reading themes and system fonts'; traceSmoke(smokeStage);
+  await window.webContents.executeJavaScript('showChunk(0,20,0.25)');
+  await new Promise(resolve=>setTimeout(resolve,100));
+  const beforeAppearance = await window.webContents.executeJavaScript('currentProgress()');
+  await handleReadingAppearance({action:'saveReadingPreferences',theme:'paper'},window);
+  await new Promise(resolve=>setTimeout(resolve,100));
+  const appearance = await window.webContents.executeJavaScript('({theme:document.documentElement.dataset.readerTheme,position:currentProgress()})');
+  if(appearance.theme!=='paper'||appearance.position.paragraph!==beforeAppearance.paragraph||Math.abs(appearance.position.fraction-beforeAppearance.fraction)>.03)throw new Error('Theme changed reading position.');
+  if(process.platform==='win32') {
+    const fonts=await require('./reading-appearance').systemFonts();
+    if(!fonts.length)throw new Error('System font list is empty.');
+    const font=fonts.find(name=>name==='Arial')||fonts[0];
+    await handleReadingAppearance({action:'saveReadingPreferences',font},window);
+    await new Promise(resolve=>setTimeout(resolve,150));
+    const fontPosition=await window.webContents.executeJavaScript('currentProgress()');
+    if(preferences.readerFont!==font||fontPosition.paragraph!==beforeAppearance.paragraph||Math.abs(fontPosition.fraction-beforeAppearance.fraction)>.05)throw new Error('Font preference or reading position was not preserved.');
+  }
+  const savedAppearance=JSON.parse(fs.readFileSync(preferencePath(),'utf8'));
+  if(savedAppearance.readerTheme!=='paper')throw new Error('Theme was not persisted.');
   smokeStage = 'switch to cover PDF'; traceSmoke(smokeStage); process.stdout.write(`${smokeStage}\n`);
   await coverSecure();
   if (vault.unlocked || currentTab !== 'normal' || !pdf?.cover) throw new Error('Focus cover did not lock and open the PDF.');

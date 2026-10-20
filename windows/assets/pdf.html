@@ -1,15 +1,17 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>阅读 PDF</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#101716;color:#e8f0e9;font:15px -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
-header{height:54px;background:#17231f;border-bottom:1px solid #34443c;display:flex;align-items:center;gap:14px;padding:0 18px}
-button{border:0;border-radius:8px;background:#294136;color:#e8f0e9;padding:10px 14px;cursor:pointer;font:inherit}button:hover{background:#3b6550}button:disabled{opacity:.5;cursor:default}
-#title{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}#page{min-width:75px;text-align:center;color:#b4c7ba}
-#viewport{height:calc(100vh - 116px);overflow:auto;text-align:center;padding:24px;background:#161e1b}
+*{box-sizing:border-box}body{margin:0;background:var(--ui-bg);color:var(--ui-text);font:15px -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+header{height:54px;background:var(--ui-panel);border-bottom:1px solid var(--ui-border);display:flex;align-items:center;gap:14px;padding:0 18px}
+button{border:0;border-radius:8px;background:var(--ui-soft);color:var(--ui-text);padding:10px 14px;cursor:pointer;font:inherit}button:hover{background:var(--ui-soft)}button:disabled{opacity:.5;cursor:default}
+#title{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}#page{min-width:75px;text-align:center;color:var(--ui-muted)}
+#viewport{height:calc(100vh - 116px);overflow:auto;text-align:center;padding:24px;background:var(--ui-bg)}
 canvas{display:block;margin:0 auto 20px;box-shadow:0 10px 30px #0008;background:white;max-width:none}
 #error{color:#ffb9b9;padding:26px}
-footer{height:62px;display:flex;align-items:center;gap:10px;padding:10px 18px;border-top:1px solid #34443c}#outline{max-width:220px;min-width:100px;margin-right:auto}select,input{font:inherit;background:#17231f;color:#e8f0e9;border:1px solid #446052;border-radius:7px;padding:8px}#pageInput{width:65px}#percent{min-width:52px}dialog{background:#17231f;color:#e8f0e9;border:1px solid #446052;border-radius:12px}dialog::backdrop{background:#0008}[hidden]{display:none!important}
-</style></head><body>
+footer{height:62px;display:flex;align-items:center;gap:10px;padding:10px 18px;border-top:1px solid var(--ui-border)}#outline{max-width:220px;min-width:100px;margin-right:auto}select,input{font:inherit;background:var(--ui-panel);color:var(--ui-text);border:1px solid var(--ui-border);border-radius:7px;padding:8px}#pageInput{width:65px}#percent{min-width:52px}dialog{background:var(--ui-panel);color:var(--ui-text);border:1px solid var(--ui-border);border-radius:12px}dialog::backdrop{background:#0008}[hidden]{display:none!important}
+</style><link rel="stylesheet" href="reader-appearance.css">
+<script src="reader-appearance.js" defer></script>
+</head><body>
 <header><button id="back" title="返回书库">←</button><span id="title"></span><button id="secure" title="加密书库">🔒</button></header>
 <div id="viewport"><canvas id="canvas"></canvas><div id="error"></div></div>
 <footer><select id="outline" aria-label="章节目录"><option>无书签目录</option></select><button id="return" hidden>返回跳转前</button><button id="prev">上一页</button><button id="page" title="跳转页码"></button><button id="next">下一页</button><span id="percent">0.0%</span></footer>

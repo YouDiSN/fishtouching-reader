@@ -13,4 +13,4 @@ let settings = fs.readFileSync(path.join(root, 'Resources/settings.html'), 'utf8
 settings = settings.replaceAll('Command-Tab', 'Alt+Tab').replaceAll('Dock', '任务栏');
 fs.writeFileSync(path.join(target, 'settings.html'), settings);
 
-for (const name of ['web-plugins.js', 'community-plugins.json', 'fanqie-font-map.json']) fs.copyFileSync(path.join(root, 'Resources', name), path.join(target, name));
+for (const name of ['reader-appearance.js', 'reader-appearance.css', 'web-plugins.js', 'community-plugins.json', 'fanqie-font-map.json']) fs.copyFileSync(path.join(root, 'Resources', name), path.join(target, name));
