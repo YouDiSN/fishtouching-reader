@@ -1,9 +1,7 @@
-v1.0.11：Windows 安装版与应用内更新。
+v1.0.12：优化字体选择框。
 
-- 新增 Windows x64 Setup.exe 安装包，保留便携 ZIP。
-- 文件菜单、系统托盘菜单新增「检查更新…」，支持下载、稍后安装和重启安装。
-- 安装版沿用现有书库目录；旧 ZIP 用户需先安装一次安装版。
-- 自动更新从个人 GitHub Release 获取 latest.yml，校验 SHA-512。Windows 包尚未代码签名。
+- 增加字体下拉框内边距与高度，文字不再贴近边框。
+- 统一圆角和下拉箭头间距，保留系统字体菜单及键盘操作。
 
 Personal Developer ID signing, Apple notarization, and macOS automatic updates.
 
