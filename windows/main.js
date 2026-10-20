@@ -521,21 +521,6 @@ function createWindow() {
   return loaded;
 }
 async function runSmoke() {
-  if (process.env.FISHTOUCHING_UPDATE_EXPECTED_VERSION) {
-    const fixture = JSON.parse(fs.readFileSync(path.join(root, 'upgrade-fixture.json'), 'utf8'));
-    if (app.getVersion() !== process.env.FISHTOUCHING_UPDATE_EXPECTED_VERSION || app.getVersion() === fixture.oldVersion) throw Error('Installed version did not advance');
-    vault.unlock('fixture-update-password');
-    const entry = vault.list().find(e => e.id === fixture.id);
-    if (!entry || entry.progress?.position !== 1 || entry.progress?.fraction !== .25) throw Error('Encrypted progress lost during upgrade');
-    if (!secureParagraphs(vault.load(entry.id)).includes('虚构的升级验证内容')) throw Error('Encrypted content lost during upgrade');
-    const normal = publicLibrary.list().find(e => e.id === fixture.normalId);
-    if (!normal || normal.progress?.position !== 2 || normal.progress?.fraction !== .5) throw Error('Public progress lost during upgrade');
-    if (preferences.name !== '更新测试' || preferences.readerTheme !== 'forest') throw Error('Preferences lost during upgrade');
-    if (Menu.getApplicationMenu().getMenuItemById('check-update')?.label !== '检查更新…') throw Error('Update menu missing');
-    vault.lock();
-    fs.writeFileSync(path.join(root, 'smoke-ok.txt'), 'Actual NSIS download, replacement, automatic relaunch, encrypted/public books, progress and preferences verified');
-    app.exit(0); return;
-  }
   smokeStage = 'configure vault'; traceSmoke(smokeStage); process.stdout.write(`${smokeStage}\n`);
   const demo = process.env.FISHTOUCHING_SMOKE_FIXTURES
     ? path.resolve(process.env.FISHTOUCHING_SMOKE_FIXTURES)

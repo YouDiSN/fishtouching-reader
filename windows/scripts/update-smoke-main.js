@@ -8,7 +8,7 @@ const { NsisUpdater } = require('electron-updater');
 const { Vault, writeAtomic } = require('./vault');
 const { PublicLibrary } = require('./library');
 const { createUpdates } = require('./updates');
-const root = process.env.FISHTOUCHING_SMOKE_ROOT;
+const root = process.env.FTR_UPGRADE_TEST_ROOT;
 if (!root || !process.env.FISHTOUCHING_UPDATE_TEST_URL) throw Error('Isolated upgrade test configuration missing');
 fs.mkdirSync(root,{recursive:true});
 app.setPath('userData', root);
