@@ -1,0 +1,82 @@
+#settingsView *{ box-sizing: border-box; }
+#settingsView{ margin: 0; color: var(--ui-text); background: var(--ui-bg); font-size: 13px; }
+#settingsView button,#settingsView input{ font: inherit; }
+#settingsView button{ cursor: pointer; }
+#settingsView .layout{ display: grid; grid-template-columns: 212px minmax(0,1fr); min-height: 100vh; }
+#settingsView .sidebar{ padding: 32px 12px 20px; background: var(--ui-panel); border-right: 1px solid var(--ui-border); }
+#settingsView .brand{ display: flex; align-items: center; gap: 11px; padding: 7px 12px 24px; border-bottom: 1px solid var(--ui-border); margin-bottom: 18px; }
+#settingsView .brand img{ width: 36px; height: 36px; object-fit: contain; border-radius: 8px; }
+#settingsView .brand-name{ min-width: 0; font-weight: 650; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#settingsView .brand-sub{ color: var(--ui-muted); font-size: 11px; margin-top: 3px; }
+#settingsView .nav-title{ color: var(--ui-muted); font-size: 11px; font-weight: 650; letter-spacing: .06em; padding: 0 12px 8px; }
+#settingsView .nav button{ display: flex; align-items: center; gap: 11px; width: 100%; border: 0; border-radius: 8px; padding: 10px 12px; margin: 2px 0; text-align: left; background: transparent; color: var(--ui-muted); }
+#settingsView .nav button.active{ background: var(--ui-soft); color: var(--ui-text); font-weight: 600; }
+#settingsView .nav svg{ width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+#settingsView .content{ padding: 38px 42px 40px; max-width: 590px; }
+#settingsView h1{ margin: 0 0 6px; font-size: 25px; font-weight: 670; letter-spacing: -.025em; }
+#settingsView .subtitle{ color: var(--ui-muted); line-height: 1.6; margin: 0 0 28px; }
+#settingsView .section-title{ font-weight: 650; margin: 0 0 11px; color: var(--ui-text); }
+#settingsView .card{ background: var(--ui-panel); border: 1px solid var(--ui-border); border-radius: 12px; overflow: hidden; }
+#settingsView .setting{ padding: 18px 20px; }
+#settingsView .setting + .setting{ border-top: 1px solid var(--ui-border); }
+#settingsView .label{ font-weight: 600; margin-bottom: 5px; }
+#settingsView .help{ color: var(--ui-muted); line-height: 1.55; font-size: 12px; }
+#settingsView .field-row{ display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+#settingsView input{ width: 100%; min-width: 0; padding: 10px 12px; background: var(--ui-input); border: 1px solid var(--ui-border); border-radius: 8px; color: var(--ui-text); outline: none; }
+#settingsView input:focus{ border-color: var(--ui-highlight); box-shadow: 0 0 0 3px #8dd0a025; }
+#settingsView .primary,#settingsView .secondary{ flex: none; border-radius: 8px; padding: 10px 16px; font-weight: 600; }
+#settingsView .primary{ border: 1px solid var(--ui-highlight); background: var(--ui-accent); color: #fff; }
+#settingsView .primary:hover{ background: var(--ui-accent); }
+#settingsView .secondary{ border: 1px solid var(--ui-border); background: var(--ui-soft); color: var(--ui-text); }
+#settingsView .secondary:hover{ background: var(--ui-soft); }
+#settingsView .icon-row{ display: flex; align-items: center; gap: 18px; margin-top: 16px; }
+#settingsView .icon-preview{ width: 72px; height: 72px; border-radius: 16px; border: 1px solid var(--ui-border); background: var(--ui-input); display: flex; align-items: center; justify-content: center; }
+#settingsView .icon-preview img{ width: 58px; height: 58px; object-fit: contain; }
+#settingsView .icon-actions{ display: grid; gap: 7px; justify-items: start; }
+#settingsView .icon-grid{ display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 17px; }
+#settingsView .icon-choice{ min-width: 0; padding: 8px; border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-input); color: var(--ui-muted); display: grid; justify-items: center; }
+#settingsView .icon-choice:hover{ border-color: var(--ui-highlight); background: var(--ui-soft); }
+#settingsView .icon-choice.active{ border-color: var(--ui-highlight); box-shadow: 0 0 0 2px #83d89a55; color: #fff; }
+#settingsView .icon-choice img{ width: 55px; height: 55px; object-fit: contain; }
+#settingsView .icon-custom{ position: relative; min-width: 0; }
+#settingsView .icon-custom .icon-choice{ width: 100%; height: 100%; }
+#settingsView .icon-delete{ position: absolute; top: -7px; right: -7px; width: 23px; height: 23px; padding: 0; border: 1px solid #b58c85; border-radius: 50%; background: #713f3d; color: #fff; font-size: 18px; line-height: 20px; }
+#settingsView .icon-delete:hover{ background: #a34e48; }
+#settingsView .form-grid{ display: grid; gap: 16px; padding: 20px; }
+#settingsView .form-grid label{ display: grid; gap: 7px; font-weight: 600; }
+#settingsView .form-grid label span{ color: var(--ui-muted); font-weight: 400; font-size: 11px; }
+#settingsView .actions{ display: flex; align-items: center; gap: 14px; }
+#settingsView .notice{ min-height: 20px; color: var(--ui-highlight); font-size: 12px; }
+#settingsView .notice.error{ color: #f0ab9c; }
+#settingsView .success-dialog{ width: 300px; max-width: calc(100vw - 40px); padding: 26px; border: 1px solid var(--ui-border); border-radius: 14px; background: var(--ui-panel); color: var(--ui-text); box-shadow: 0 24px 80px #0009; text-align: center; }
+#settingsView .success-dialog::backdrop{ background: #090f0bc2; }
+#settingsView .success-mark{ width: 44px; height: 44px; display: grid; place-items: center; margin: 0 auto 14px; border-radius: 50%; background: var(--ui-accent); color: white; font-size: 26px; }
+#settingsView .success-dialog h2{ margin: 0 0 8px; font-size: 18px; }
+#settingsView .success-dialog p{ margin: 0 0 20px; color: var(--ui-muted); line-height: 1.5; }
+#settingsView .dialog-actions{ display: flex; justify-content: center; gap: 10px; }
+#settingsView .hidden{ display: none; }
+@media(max-width:700px){#settingsView .layout{ grid-template-columns: 170px minmax(0,1fr); }
+#settingsView .content{ padding: 28px 26px; }
+#settingsView .field-row{ flex-wrap: wrap; }
+ }
+#settingsView .layout{grid-template-columns:190px minmax(0,1fr);height:100vh;min-height:0}
+#settingsView .sidebar{padding:22px 14px;background:var(--ui-bg);border-color:color-mix(in srgb,var(--ui-text) 12%,transparent)}
+#settingsView .content{max-width:none;padding:44px 42px;overflow:auto;background:var(--ui-panel)}
+#settingsView h1{font-size:24px;letter-spacing:-.025em;font-weight:650;margin-bottom:10px}
+#settingsView .subtitle{font-size:13px;margin-bottom:30px;color:var(--ui-muted)}
+#settingsView .settings-back{display:flex;gap:10px;align-items:center;border:0;background:transparent;color:var(--ui-muted);padding:8px 10px;font:inherit;cursor:pointer}
+#settingsView .settings-title{font-size:18px;font-weight:650;padding:27px 12px 18px}
+#settingsView .nav button{padding:12px;gap:12px;color:var(--ui-muted);margin:4px 0}
+#settingsView .nav button.active{background:var(--ui-soft);color:var(--ui-text);font-weight:600}
+#settingsView .card{border:0;border-radius:0;background:transparent;overflow:visible}
+#settingsView .setting{padding:20px 0}
+#settingsView .setting+.setting{border-color:color-mix(in srgb,var(--ui-text) 12%,transparent)}
+#settingsView .form-grid{padding:8px 0}
+#settingsView .section-footnote{font-size:12px;color:var(--ui-muted);margin-top:26px}
+@media(max-width:750px){#settingsView .layout{grid-template-columns:158px minmax(0,1fr)}
+#settingsView .content{padding:30px 24px}
+#settingsView .sidebar{padding:18px 8px}
+}
+
+
+#settingsView{position:fixed;inset:0;z-index:100;overflow:hidden;background:var(--ui-panel);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}#settingsView[hidden]{display:none!important}

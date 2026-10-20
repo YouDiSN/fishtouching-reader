@@ -21,9 +21,10 @@ const DEFAULT_NAME = 'FishTouching Reader';
 const MAX_VAULTS = 2;
 const ICONS = new Set(['fish', 'book', 'night', 'leaf', 'coffee', 'star', 'pencil', 'music', 'sunrise', 'cloud']);
 const assets = path.join(__dirname, 'assets');
-let root, vault, vaults, publicLibrary, preferences, window, settingsWindow, tray, importPlugins;
+let root, vault, vaults, publicLibrary, preferences, window, tray, importPlugins;
 let activeVaultIndex = 0, resumeVaultIndex = 0, settingsVaultIndex = 0;
 let currentTab = 'normal', currentId = null, resumeId = null, pdf = null;
+let settingsVisible = false, settingsOpening = false;
 let switching = false, dialogOpen = false, quitting = false;
 const smokeMode = Boolean(process.env.FISHTOUCHING_SMOKE_ROOT) || process.argv.includes('--smoke');
 let smokeStage = 'waiting for Electron';
@@ -46,12 +47,11 @@ function iconPath(id = preferences.iconID) {
 function applyAppearance() {
   const name = preferences.name || DEFAULT_NAME;
   if (window) { window.setTitle(name); window.setIcon(nativeImage.createFromPath(iconPath())); }
-  if (settingsWindow) settingsWindow.setTitle(`设置 · ${name}`);
   if (tray) { tray.setToolTip(name); tray.setImage(nativeImage.createFromPath(iconPath()).resize({ width: 16, height: 16 })); }
 }
 function send(data) { if (window && !window.isDestroyed() && !pdf) window.webContents.executeJavaScript(`receive(${JSON.stringify(data)})`).catch(() => {}); }
 function sendSettings(extra = {}) {
-  if (!settingsWindow || settingsWindow.isDestroyed()) return;
+  if (!window || window.isDestroyed()) return;
   const currentIcon = iconPath();
   const customIcon = iconPath('custom');
   const payload = { name: preferences.pendingName || preferences.name || DEFAULT_NAME,
@@ -59,7 +59,7 @@ function sendSettings(extra = {}) {
     hasCustomIcon: fs.existsSync(customIcon), customIcon: fs.existsSync(customIcon) ? `data:image/png;base64,${fs.readFileSync(customIcon).toString('base64')}` : undefined,
     passwordScope: settingsVaultIndex === 0 ? 'primary' : 'private',
     canCreatePrivate: settingsVaultIndex === 0, ...extra };
-  settingsWindow.webContents.executeJavaScript(`receiveSettings(${JSON.stringify(payload)})`).catch(() => {});
+  window.webContents.executeJavaScript(`receiveSettings(${JSON.stringify(payload)})`).catch(() => {});
 }
 function error(message, context = currentTab === 'secure' ? 'library' : 'normal') { send({ type: 'error', context, message: String(message?.message || message) }); }
 function normalState() {
@@ -250,14 +250,14 @@ async function importLocal() {
 async function chooseIcon() {
   dialogOpen = true;
   try {
-    const selection = await dialog.showOpenDialog(settingsWindow || window, { properties: ['openFile'], filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp'] }] });
+    const selection = await dialog.showOpenDialog(window, { properties: ['openFile'], filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp'] }] });
     if (selection.canceled) return;
     const image = nativeImage.createFromPath(selection.filePaths[0]);
     if (image.isEmpty()) throw new Error('无法读取这张图片。');
     writeAtomic(iconPath('custom'), image.toPNG());
     preferences.iconID = 'custom'; savePreferences(); applyAppearance();
     sendSettings({ message: '任务栏图标已更新。' });
-    if (!settingsWindow) window.webContents.executeJavaScript("selectSetupIcon('custom')").catch(() => {});
+    if (!settingsVisible) window.webContents.executeJavaScript("selectSetupIcon('custom')").catch(() => {});
   } finally { dialogOpen = false; }
 }
 async function handleReadingAppearance(data, target) {
@@ -268,7 +268,9 @@ async function handleReadingAppearance(data, target) {
     catch(e) { deliver(target,'receiveSystemFonts',{error:e.message}); }
     return true;
   }
+  if(data.action==='readingPreferences' && preferences.readerFontSize===undefined && Number.isInteger(data.legacyFontSize) && data.legacyFontSize>=15 && data.legacyFontSize<=30){preferences.readerFontSize=data.legacyFontSize;savePreferences();}
   if(data.action==='saveReadingPreferences') {
+    if(Number.isInteger(data.fontSize)&&data.fontSize>=15&&data.fontSize<=30)preferences.readerFontSize=data.fontSize;
     if(['forest','paper','light','midnight','graphite'].includes(data.theme))preferences.readerTheme=data.theme;
     if(typeof data.font==='string') {
       if(!data.font) preferences.readerFont='';
@@ -276,10 +278,8 @@ async function handleReadingAppearance(data, target) {
     }
     savePreferences();
   }
-  const payload={theme:preferences.readerTheme||'forest',font:preferences.readerFont||''};
-  if(data.action==='saveReadingPreferences') {
-    deliver(window,'receiveReadingPreferences',payload);deliver(settingsWindow,'receiveReadingPreferences',payload);
-  } else deliver(target,'receiveReadingPreferences',payload);
+  const payload={theme:preferences.readerTheme||'forest',font:preferences.readerFont||'',fontSize:preferences.readerFontSize||19};
+  deliver(target,'receiveReadingPreferences',payload);
   return true;
 }
 async function handleAction(data) {
@@ -385,30 +385,32 @@ async function handleAction(data) {
       case 'selectIcon': if (ICONS.has(data.id)) { preferences.iconID = data.id; savePreferences(); applyAppearance();
         window.webContents.executeJavaScript(`selectSetupIcon(${JSON.stringify(data.id)})`).catch(() => {}); } break;
       case 'chooseIcon': await chooseIcon(); break;
-      case 'settings': settingsVaultIndex = currentTab === 'secure' && vault.unlocked ? activeVaultIndex : 0; await coverSecure(); showSettings(); break;
+      case 'settings': await showSettings(); break;
       case 'hide': await coverSecure(); window.hide(); break;
     }
   } catch (e) { error(e, action === 'setup' ? 'setup' : undefined); }
 }
-function showSettings() {
-  if (settingsWindow && !settingsWindow.isDestroyed()) { settingsWindow.show(); settingsWindow.focus(); sendSettings(); return; }
-  settingsWindow = new BrowserWindow({ width: 780, height: 560, minWidth: 660, minHeight: 460,
-    title: `设置 · ${preferences.name}`, parent: window, icon: iconPath(), autoHideMenuBar: true,
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), nodeIntegration: false, contextIsolation: true, sandbox: true } });
-  settingsWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  settingsWindow.webContents.on('did-finish-load', () => sendSettings());
-  settingsWindow.on('blur', () => {
-    settingsWindow?.webContents.executeJavaScript("document.getElementById('passwordForm')?.reset(); document.getElementById('privateForm')?.reset()").catch(() => {});
-    if (settingsVaultIndex > 0 && settingsWindow && !settingsWindow.isDestroyed()) settingsWindow.close();
-  });
-  settingsWindow.on('closed', () => { settingsWindow = null; });
-  settingsWindow.loadFile(path.join(assets, 'settings.html'));
+async function showSettings() {
+  if(settingsVisible||settingsOpening)return;
+  settingsOpening=true;
+  try {
+  settingsVaultIndex=currentTab==='secure'&&vault.unlocked?activeVaultIndex:0;
+  if(!pdf)await window.webContents.executeJavaScript("window.flushProgress?.()").catch(()=>{});
+  await coverSecure(false); await showNormal();
+  settingsVisible=true;
+  await window.webContents.executeJavaScript('showInlineSettings()');sendSettings();
+  } finally {settingsOpening=false;}
+}
+function closeSettings() {
+  settingsVisible=false;settingsVaultIndex=0;
+  window.webContents.executeJavaScript('hideInlineSettings()').catch(()=>{});
 }
 async function settingsAction(data) {
-  if(await handleReadingAppearance(data, settingsWindow))return;
+  if(await handleReadingAppearance(data, window))return;
   try {
     switch (data?.action) {
       case 'ready': sendSettings(); break;
+      case 'closeSettings': closeSettings(); break;
       case 'chooseIcon': await chooseIcon(); break;
       case 'selectIcon': if (ICONS.has(data.id)) { preferences.iconID = data.id; savePreferences(); applyAppearance(); sendSettings({ message: '任务栏图标已更新。' }); } break;
       case 'selectCustomIcon': if (fs.existsSync(iconPath('custom'))) { preferences.iconID = 'custom'; savePreferences(); applyAppearance(); sendSettings({ message: '任务栏图标已更新。' }); } break;
@@ -454,11 +456,11 @@ function createWindow() {
   window.webContents.on('will-navigate', event => event.preventDefault());
   window.on('blur',()=>{cancelWebImport();sendWeb({error:'窗口失焦，任务已取消，请重新预览。',reset:true});});
   window.webContents.on('did-finish-load', () => { if (!pdf) send(!vault.configured ? { type: 'setup', iconID: preferences.iconID } : currentTab === 'secure' ? (vault.unlocked ? secureState() : { type: 'locked' }) : normalState()); });
-  window.on('blur', () => { coverSecure(); });
+  window.on('blur', () => { window.webContents.executeJavaScript('window.resetSettingsForms?.()').catch(()=>{});if(settingsVisible&&settingsVaultIndex>0)closeSettings();coverSecure(); });
   window.on('close', event => { if (!quitting) { event.preventDefault(); coverSecure().finally(() => window.hide()); } });
   const loaded = window.loadFile(path.join(assets, 'index.html'));
   const menu = Menu.buildFromTemplate([{ label: '文件', submenu: [
-    { label: '设置', accelerator: 'CommandOrControl+,', click: () => { settingsVaultIndex = currentTab === 'secure' && vault.unlocked ? activeVaultIndex : 0; coverSecure().finally(showSettings); } },
+    { label: '设置', accelerator: 'CommandOrControl+,', click: () => {showSettings().catch(error);} },
     { label: '显示／隐藏', accelerator: 'Control+Alt+H', click: toggleWindow },
     { type: 'separator' }, { label: '退出', click: () => { quitting = true; app.quit(); } }
   ] }]);
@@ -467,7 +469,7 @@ function createWindow() {
   tray.setToolTip(preferences.name);
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: '显示／隐藏    Ctrl+Alt+H', click: toggleWindow },
-    { label: '设置    Ctrl+,', click: () => { settingsVaultIndex = currentTab === 'secure' && vault.unlocked ? activeVaultIndex : 0; coverSecure().finally(showSettings); } },
+    { label: '设置    Ctrl+,', click: () => {showSettings().catch(error);} },
     { type: 'separator' }, { label: '退出', click: () => { quitting = true; app.quit(); } }
   ]));
   globalShortcut.register('Control+Alt+H', toggleWindow);
@@ -509,6 +511,10 @@ async function runSmoke() {
   await new Promise(resolve=>setTimeout(resolve,100));
   const appearance = await window.webContents.executeJavaScript('({theme:document.documentElement.dataset.readerTheme,position:currentProgress()})');
   if(appearance.theme!=='paper'||appearance.position.paragraph!==beforeAppearance.paragraph||Math.abs(appearance.position.fraction-beforeAppearance.fraction)>.03)throw new Error('Theme changed reading position.');
+  await handleReadingAppearance({action:'saveReadingPreferences',fontSize:24},window);
+  await new Promise(resolve=>setTimeout(resolve,100));
+  const sized=await window.webContents.executeJavaScript('({size:getComputedStyle(document.getElementById("text")).fontSize,position:currentProgress()})');
+  if(sized.size!=='24px'||sized.position.paragraph!==beforeAppearance.paragraph||Math.abs(sized.position.fraction-beforeAppearance.fraction)>.05)throw new Error('Font size or reading position was not preserved.');
   if(process.platform==='win32') {
     const fonts=await require('./reading-appearance').systemFonts();
     if(!fonts.length)throw new Error('System font list is empty.');
@@ -555,6 +561,23 @@ async function runSmoke() {
   await coverSecure(false); await showSecure();
   await handleAction({ action: 'unlock', password: 'test4321' });
   if (activeVaultIndex !== 0 || vault.list().map(e => e.title).join() !== '窗边的橘猫') throw new Error('Primary vault leaked second catalog.');
+  await openEntry(entry.id,true);
+  smokeStage='single-page settings navigation and synchronization';traceSmoke(smokeStage);
+  await showSettings();
+  const singlePage=await window.webContents.executeJavaScript('document.querySelectorAll("iframe").length===0&&!document.getElementById("settingsView").hidden');
+  if(!singlePage||BrowserWindow.getAllWindows().length!==1||vault.unlocked)throw Error('Settings did not stay in one document or vault stayed unlocked');
+  await window.webContents.executeJavaScript(`(()=>{document.getElementById('settingsView').__reuseMarker=1;document.querySelector('#settingsView [data-theme="light"]').click();document.getElementById('navFont').click();const size=document.querySelector('#settingsView [data-size]');size.value='22';size.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  for(let i=0;i<40&&(preferences.readerTheme!=='light'||preferences.readerFontSize!==22);i++)await new Promise(resolve=>setTimeout(resolve,100));
+  if(preferences.readerTheme!=='light'||preferences.readerFontSize!==22)throw Error('Settings did not save preferences');
+  closeSettings();await showSettings();
+  const reused=await window.webContents.executeJavaScript('document.getElementById("settingsView").__reuseMarker===1');
+  if(!reused)throw Error('Settings view was recreated');closeSettings();
+  await showSecure();await handleAction({action:'unlock',password:'second-space-pass'});await showSettings();
+  if(settingsVaultIndex!==1||vault.unlocked)throw Error('Independent settings scope or lock failed');
+  await window.webContents.executeJavaScript('document.getElementById("oldPassword").value="temporary-smoke-input"');
+  window.emit('blur');await new Promise(resolve=>setTimeout(resolve,150));
+  const cleared=await window.webContents.executeJavaScript('document.getElementById("settingsView").hidden&&document.getElementById("oldPassword").value===""');
+  if(settingsVisible||!cleared)throw Error('Settings focus loss retained private form');
   fs.writeFileSync(path.join(root, 'smoke-ok.txt'), 'read, cover PDF, lock, resume');
   process.stdout.write('Windows app smoke passed: read, cover PDF, lock, resume, independent vaults.\n');
   process.exit(0);
@@ -575,7 +598,7 @@ app.whenReady().then(async () => {
   publicLibrary = new PublicLibrary(path.join(root, 'public'));
   importPlugins = new ImportPluginRegistry(path.join(root, 'import-plugins'));
   ipcMain.on('app-action', (event, data) => { if (event.sender === window?.webContents) handleAction(data); });
-  ipcMain.on('settings-action', (event, data) => { if (event.sender === settingsWindow?.webContents) settingsAction(data); });
+  ipcMain.on('settings-action', (event, data) => { if (event.sender === window?.webContents) settingsAction(data); });
   ipcMain.on('pdf-ready', event => { if (event.sender === window?.webContents && pdf) {
     window.webContents.send('pdf-document', { title: pdf.entry.title, data: pdf.data,
       position: pdf.entry.progress?.position || 0, fraction: pdf.entry.progress?.fraction || 0, secure: pdf.secure });

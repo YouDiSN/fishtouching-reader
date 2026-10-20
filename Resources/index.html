@@ -124,11 +124,64 @@
   .reader-controls { display: flex; align-items: center; gap: 4px; }
   @media(max-width:700px) { .shell { padding: 24px 18px; } .reader { padding: 18px 24px 160px; } }
 </style>
+<link rel="stylesheet" href="settings.css">
 <link rel="stylesheet" href="reader-appearance.css">
 <script src="reader-appearance.js" defer></script>
 </head>
 <body><main id="app"></main><dialog id="removeDialog" class="confirm-dialog" aria-labelledby="removeTitle"><h2 id="removeTitle">确认移除？</h2><p id="removeBookTitle"></p><p class="muted">将从书库移除，并删除应用保存的副本和阅读进度。本地导入的原始文件不会被删除。</p><div class="row"><button type="button" class="secondary" id="cancelRemove">取消</button><button type="button" class="danger" id="confirmRemove">确认移除</button></div></dialog>
 <dialog id="transferDialog" class="confirm-dialog" aria-labelledby="transferTitle"><h2 id="transferTitle">移至另一书库</h2><p id="transferBookTitle"></p><p class="muted">输入另一书库的密码。书籍和阅读进度会先复制并验证，再从当前书库移除。</p><form id="transferForm"><input id="transferPassword" type="password" autocomplete="off" placeholder="另一书库密码" required><div class="row"><button type="button" class="secondary" id="cancelTransfer">取消</button><button type="submit">确认移动</button></div></form></dialog>
+<section id="settingsView" class="settings-page" aria-label="设置" hidden>
+<div class="layout">
+  <aside class="sidebar">
+    <button class="settings-back" id="closeSettings" type="button">← <span>返回书库</span></button><div class="settings-title">设置</div><span id="brandName" hidden></span><img id="brandIcon" hidden alt="">
+
+    <nav class="nav" aria-label="设置分类">
+      <button id="navTheme" class="active" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4v16a8 8 0 0 0 0-16Z"/></svg>主题</button><button id="navFont" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 19 6-14 6 14M5 14h8M16 10h6M19 10v9"/></svg>字体</button>
+      <button id="navAppearance" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9c0-1.5-1.2-2.5-2.5-2.5H16a2 2 0 0 1-2-2V5.5C14 4.1 13.2 3 12 3Z"/><path d="M7 11h.01M9 7h.01M15 16h.01"/></svg>应用标识</button>
+      <button id="navSecurity" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></svg>密码与隐私</button>
+    </nav>
+  </aside>
+  <main class="content">
+    <section id="theme"><h1>主题</h1><p class="subtitle">为你的阅读，选一种喜欢的颜色。</p><div data-reading-appearance="theme"></div><p class="section-footnote">点击即可应用，所有书库共用。</p></section>
+    <section id="font" class="hidden"><h1>字体</h1><p class="subtitle">用习惯的字体，读得更自在。</p><div data-reading-appearance="font"></div></section>
+    <section id="appearance" class="hidden"><h1>应用标识</h1><p class="subtitle">自定义应用的名称和图标。</p>
+      <div class="card">
+        <div class="setting"><div class="label">应用名称</div><div class="help">留空保存会使用“FishTouching Reader”；更改后重新打开应用，Dock 会显示新名称。</div>
+          <div class="field-row"><input id="appName" aria-label="应用名称" maxlength="40" spellcheck="false"><button class="primary" id="saveName">保存名称</button></div></div>
+        <div class="setting"><div class="label">Dock 图标</div><div class="help">点击内置图标即可使用。</div>
+          <div class="icon-grid" id="presetIcons" aria-label="内置图标"></div>
+          <div class="icon-row"><div class="icon-preview"><img id="iconPreview" alt="当前 Dock 图标"></div><div class="icon-actions"><button class="secondary" id="chooseIcon">选择自己的图片…</button><div class="help">推荐 1024×1024 像素或更大的正方形 PNG 原图；也支持 JPEG、HEIC、TIFF。小图放大后会模糊。</div></div></div></div>
+      </div>
+    </section>
+    <section id="security" class="hidden">
+      <h1>密码与隐私</h1><p class="subtitle" id="passwordScope">修改当前书库的密码。我的书库无需密码。</p>
+      <div class="section-title">修改当前书库密码</div>
+      <div class="card"><form id="passwordForm" class="form-grid" autocomplete="off">
+        <label>当前密码<input id="oldPassword" type="password" autocomplete="current-password" required></label>
+        <label>新密码 <span>至少 4 个字符</span><input id="newPassword" type="password" autocomplete="new-password" minlength="4" required></label>
+        <label>确认新密码<input id="confirmPassword" type="password" autocomplete="new-password" minlength="4" required></label>
+        <div class="actions"><button class="primary" type="submit">更新密码</button></div>
+      </form></div>
+      <div id="privateSetup" class="hidden" style="margin-top:24px">
+        <div class="section-title">添加独立书库</div>
+        <div class="card"><form id="privateForm" class="form-grid" autocomplete="off">
+          <p class="help">独立书库有自己的密码、加密密钥、书目和阅读进度。创建后在锁定页输入新密码进入。本版最多 2 个加密书库。</p>
+          <label>当前书库密码<input id="primaryPassword" type="password" autocomplete="off" required></label>
+          <label>独立书库密码 <span>建议使用较长口令</span><input id="privatePassword" type="password" autocomplete="new-password" minlength="4" required></label>
+          <label>确认独立书库密码<input id="confirmPrivatePassword" type="password" autocomplete="new-password" minlength="4" required></label>
+          <div class="actions"><button class="primary" type="submit">创建独立书库</button></div>
+        </form></div>
+      </div>
+      <p class="help" style="margin-top:16px">切出加密书库或加密书籍时，应用会显示我的书库的 PDF。其他书籍保持当前画面。</p>
+    </section>
+    <p class="notice" id="notice" role="status" aria-live="polite"></p>
+  </main>
+</div>
+<dialog id="passwordUpdated" class="success-dialog" aria-labelledby="successTitle"><div class="success-mark" aria-hidden="true">✓</div><h2 id="successTitle">密码已更新</h2><p>下次打开加密书库，请使用新密码。</p><button class="primary" id="dismissSuccess">知道了</button></dialog>
+<dialog id="restartDialog" class="success-dialog" aria-labelledby="restartTitle"><div class="success-mark" aria-hidden="true">↻</div><h2 id="restartTitle">名称已保存</h2><p>重新启动后，Command-Tab 和 Dock 会显示新名称。</p><div class="dialog-actions"><button class="secondary" id="restartLater">下次重启</button><button class="primary" id="restartNow">立即重启</button></div></dialog>
+<dialog id="deleteIconDialog" class="success-dialog" aria-labelledby="deleteIconTitle"><h2 id="deleteIconTitle">删除自定义图标？</h2><p>图标删除之后无法恢复，是否确认删除图标？原始图片文件不会被删除。</p><div class="dialog-actions"><button class="secondary" id="cancelDeleteIcon">取消</button><button class="primary" id="confirmDeleteIcon">删除图标</button></div></dialog>
+</section>
+<script src="settings.js" defer></script>
 <script>
 const app = document.getElementById('app');
 let state = {type:'hidden'};
@@ -361,8 +414,9 @@ function renderBook() {
   const saved=Math.max(0,Math.min(book.paragraphs.length-1,book.paragraph||0));
   chunk=Math.floor(saved/chunkSize);
   app.innerHTML=`<div class="reader-head">${tabs(state.tab||'secure')}<button class="secondary" id="back">书库</button><div class="title">${h(title(state.encodedTitle))}</div>
-    <details class="reader-menu" id="readingSettings"><summary>阅读设置</summary><div class="reader-popover"><label>字号 <output id="fontLabel">${fontSize}</output></label><div class="row"><button class="secondary" id="smaller" aria-label="缩小字号">A−</button><button class="secondary" id="larger" aria-label="放大字号">A＋</button></div><div data-reading-appearance></div><label for="layout">正文排版</label><select id="layout"><option value="clean">整理排版</option><option value="raw">原始排版</option></select></div></details>
-    <details class="reader-menu"><summary aria-label="更多操作">···</summary><div class="reader-popover">${state.tab==='normal'?'':`<button class="ghost" id="exportTxt">导出 TXT</button>${state.hasEPUB?'<button class="ghost" id="exportEPUB">导出原始 EPUB</button>':''}`}<button class="ghost" id="settings">应用设置</button></div></details></div>
+    <details class="reader-menu" id="readingSettings"><summary>主题</summary><div class="reader-popover theme-popover"><div data-reading-appearance="theme"></div></div></details>
+    <details class="reader-menu" id="fontSettings"><summary>字体</summary><div class="reader-popover"><div data-reading-appearance="font"></div></div></details>
+    <details class="reader-menu"><summary aria-label="更多操作">···</summary><div class="reader-popover">${state.tab==='normal'?'':`<button class="ghost" id="exportTxt">导出 TXT</button>${state.hasEPUB?'<button class="ghost" id="exportEPUB">导出原始 EPUB</button>':''}`}<label for="layout">正文排版</label><select id="layout"><option value="clean">整理排版</option><option value="raw">原始排版</option></select><button class="ghost" id="settings">应用设置</button></div></details></div>
     <div class="reader"><div class="reader-text" id="text"></div></div>
     <footer class="reader-dock"><div class="reader-nav"><button class="ghost chapter-current" id="directory" title="打开章节目录">目录</button><div class="page-controls"><button class="secondary" id="prev">上一页</button><button class="ghost" id="page" aria-label="跳转页码"></button><button class="secondary" id="next">下一页</button></div><span class="muted" id="percent">0%</span></div><div class="progress-track" id="readingProgress" role="progressbar" aria-label="整本阅读进度" aria-valuemin="0" aria-valuemax="100"><span></span></div></footer>
     <button class="secondary jump-return" id="jumpReturn" hidden>返回跳转前位置</button>
@@ -378,8 +432,6 @@ function renderBook() {
     const position=currentProgress(); layoutMode=layout.value; localStorage.setItem('layoutMode',layoutMode);
     buildDisplayParagraphs(); showChunk(chunk,position?.paragraph,position?.fraction);
   };
-  document.getElementById('smaller').onclick=()=>changeFont(-1);
-  document.getElementById('larger').onclick=()=>changeFont(1);
   document.getElementById('prev').onclick=()=>showChunk(chunk-1);
   document.getElementById('next').onclick=()=>showChunk(chunk+1);
   document.getElementById('page').onclick=()=>{const input=document.getElementById('pageInput');input.value=chunk+1;document.getElementById('pageDialog').showModal();input.focus();input.select();};
@@ -443,13 +495,10 @@ function pageCount(){return Math.max(1,Math.ceil(book.paragraphs.length/chunkSiz
 function readingTop(){return (document.querySelector('.reader-head')?.getBoundingClientRect().bottom||70)+16;}
 let appearancePosition = null;
 window.addEventListener('reader-appearance-will-change',()=>{appearancePosition=currentProgress();});
-window.addEventListener('reader-appearance-changed',()=>{
+window.addEventListener('reader-appearance-changed',event=>{
+  fontSize=event.detail.fontSize;localStorage.setItem('fontSize',fontSize);
   if(book && appearancePosition) showChunk(chunk,appearancePosition.paragraph,appearancePosition.fraction);
 });
-function changeFont(delta) {
-  const position=currentProgress();fontSize=Math.max(15,Math.min(30,fontSize+delta));localStorage.setItem('fontSize',fontSize);
-  document.getElementById('fontLabel').textContent=fontSize;showChunk(chunk,position?.paragraph,position?.fraction);
-}
 function jumpTo(paragraph){jumpOrigin=currentProgress();document.getElementById('jumpReturn').hidden=!jumpOrigin;showChunk(Math.floor(paragraph/chunkSize),paragraph);}
 function showChunk(index, paragraph, fraction=0) {
   if (!book) return;

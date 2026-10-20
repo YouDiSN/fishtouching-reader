@@ -38,8 +38,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     private var window: NSWindow!
     private var webView: WKWebView!
     private var aboutWindowController: AboutWindowController?
-    private var settingsWindow: NSWindow?
-    private var settingsWebView: WKWebView?
+    private var settingsVisible = false
+    private var settingsOpening = false
     private var nameRestartScheduled = false
     private var pdfContainer: NSView!
     private var pdfView: PDFView!
@@ -90,6 +90,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         let config = WKWebViewConfiguration()
         let messages = WKUserContentController()
         messages.add(self, name: "app")
+        messages.add(self, name: "settings")
         config.userContentController = messages
         webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = self
@@ -136,13 +137,11 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         vaults.forEach { $0.lock() }
     }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        if sender === settingsWindow { settingsWebView?.evaluateJavaScript("document.getElementById('passwordForm')?.reset(); document.getElementById('privateForm')?.reset()", completionHandler: nil); return true }
         hideWindow()
         return false
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        if webView === settingsWebView { sendSettingsState(); return }
         if primaryVault.needsSetup { send(["type": "setup", "iconID": activeIconID]); return }
         if currentTab == "secure" {
             vault.lock()
@@ -457,7 +456,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     private func chooseIcon(fromSettings: Bool = false) {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.png, .jpeg, .heic, .tiff]
-        panel.beginSheetModal(for: (fromSettings ? settingsWindow : window) ?? window) { [weak self] response in
+        panel.beginSheetModal(for: window) { [weak self] response in
             guard let self, response == .OK, let url = panel.url,
                   let icon = NSImage(contentsOf: url), let tiff = icon.tiffRepresentation,
                   let bitmap = NSBitmapImageRep(data: tiff), let png = bitmap.representation(using: .png, properties: [:]) else { return }
@@ -504,36 +503,31 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     }
 
     private func showSettings() {
+        guard !settingsVisible, !settingsOpening, !secureTransitioning else { return }
+        settingsOpening = true
         settingsVaultIndex = currentTab == "secure" && vault.isUnlocked ? activeVaultIndex : 0
-        if let settingsWindow {
-            settingsWindow.makeKeyAndOrderFront(nil)
+        let present: () -> Void = { [weak self] in
+            guard let self else { return }
+            self.savePDFProgress(); self.stopObservingPDF()
+            self.pdfContainer.isHidden = true; self.pdfView.document = nil
+            self.currentPDFID = nil; self.currentPDFIsSecure = false
+            self.webView.isHidden = false
+            self.settingsVisible = true
+            self.settingsOpening = false
+            self.webView.evaluateJavaScript("showInlineSettings()") { _, _ in self.sendSettingsState() }
+            self.window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
-            sendSettingsState()
-            return
         }
-        let configuration = WKWebViewConfiguration()
-        let messages = WKUserContentController()
-        messages.add(self, name: "settings")
-        configuration.userContentController = messages
-        let settingsView = WKWebView(frame: .zero, configuration: configuration)
-        settingsView.navigationDelegate = self
-        settingsView.autoresizingMask = [.width, .height]
-        let panel = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 780, height: 540),
-                             styleMask: [.titled, .closable, .miniaturizable, .resizable],
-                             backing: .buffered, defer: false)
-        panel.title = "设置 · \(displayName)"
-        panel.minSize = NSSize(width: 660, height: 460)
-        panel.center()
-        panel.contentView = settingsView
-        panel.isReleasedWhenClosed = false
-        panel.delegate = self
-        settingsWindow = panel
-        settingsWebView = settingsView
-        let url = Bundle.main.url(forResource: "settings", withExtension: "html")
-            ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Resources/settings.html")
-        settingsView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
-        panel.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        if currentTab == "secure", vault.isUnlocked { secureLock(showNormal: true, completion: present) }
+        else {
+            webView.evaluateJavaScript("window.flushProgress?.()") { _, _ in self.showNormalLibrary(completion: present) }
+        }
+    }
+
+    private func closeSettings() {
+        settingsVisible = false
+        webView.evaluateJavaScript("hideInlineSettings()", completionHandler: nil)
+        settingsVaultIndex = 0
     }
 
     private func settingsIconDataURL() -> String {
@@ -549,7 +543,6 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     }
 
     private func sendSettingsState(message: String? = nil, error: String? = nil, restartPrompt: Bool = false) {
-        guard let settingsWebView else { return }
         var payload: [String: Any] = ["name": UserDefaults.standard.string(forKey: "pendingDisplayName") ?? displayName,
                                       "icon": settingsIconDataURL(),
                                       "iconID": activeIconID,
@@ -562,12 +555,13 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         if restartPrompt { payload["restartPrompt"] = true }
         guard let jsonData = try? JSONSerialization.data(withJSONObject: payload),
               let json = String(data: jsonData, encoding: .utf8) else { return }
-        settingsWebView.evaluateJavaScript("receiveSettings(\(json))", completionHandler: nil)
+        webView.evaluateJavaScript("receiveSettings(\(json))", completionHandler: nil)
     }
 
     private func handleSettingsAction(_ action: String, data: [String: Any]) {
         switch action {
         case "ready": sendSettingsState()
+        case "closeSettings": closeSettings()
         case "chooseIcon": chooseIcon(fromSettings: true)
         case "selectIcon": choosePresetIcon(data["id"] as? String ?? "")
         case "selectCustomIcon":
@@ -678,7 +672,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
             return true
         }
         let defaults = UserDefaults.standard
+        if action == "readingPreferences", defaults.object(forKey: "readerFontSize") == nil,
+           let legacy = data["legacyFontSize"] as? Int, (15...30).contains(legacy) { defaults.set(legacy, forKey: "readerFontSize") }
         if action == "saveReadingPreferences" {
+            if let size = data["fontSize"] as? Int, (15...30).contains(size) { defaults.set(size, forKey: "readerFontSize") }
             if let theme = data["theme"] as? String, ["forest", "paper", "light", "midnight", "graphite"].contains(theme) {
                 defaults.set(theme, forKey: "readerTheme")
             }
@@ -686,10 +683,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
                 defaults.set(font, forKey: "readerFont")
             }
         }
-        let payload = ["theme": defaults.string(forKey: "readerTheme") ?? "forest", "font": defaults.string(forKey: "readerFont") ?? ""]
+        let payload: [String: Any] = ["theme": defaults.string(forKey: "readerTheme") ?? "forest", "font": defaults.string(forKey: "readerFont") ?? "", "fontSize": defaults.object(forKey: "readerFontSize") as? Int ?? 19]
         if action == "saveReadingPreferences" {
             deliver("receiveReadingPreferences", payload, to: webView)
-            deliver("receiveReadingPreferences", payload, to: settingsWebView)
         } else { deliver("receiveReadingPreferences", payload, to: source) }
         return true
     }
@@ -707,7 +703,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     @objc private func onLostFocus() {
         cancelWebImport()
         sendWeb(["error":"任务因窗口失焦已取消，请重新预览。", "reset":true])
-        if settingsVaultIndex > 0 { settingsWindow?.close() }
+        webView.evaluateJavaScript("resetSettingsForms()", completionHandler: nil)
+        if settingsVisible && settingsVaultIndex > 0 { closeSettings() }
         guard window.isVisible, currentTab == "secure", !secureTransitioning else { return }
         if !vault.isUnlocked {
             currentBookID = nil
@@ -723,9 +720,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         onLostFocus()
     }
 
-    private func secureLock(showNormal: Bool = false, openCoverPDF: Bool = false) {
+    private func secureLock(showNormal: Bool = false, openCoverPDF: Bool = false, completion: (() -> Void)? = nil) {
         guard currentTab == "secure", vault.isUnlocked, !secureTransitioning else { return }
-        if settingsVaultIndex > 0 { settingsWindow?.close() }
+        webView.evaluateJavaScript("resetSettingsForms()", completionHandler: nil)
+        if settingsVisible && settingsVaultIndex > 0 { closeSettings() }
         secureTransitioning = true
         secureResumeID = currentBookID
         secureResumeVaultIndex = activeVaultIndex
@@ -763,11 +761,13 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
                         self.openPDF(firstPDF.id, asCover: true)
                     }
                     self.secureTransitioning = false
+                    completion?()
                 }
             } else {
                 self.showLocked()
                 self.webView.isHidden = false
                 self.secureTransitioning = false
+                completion?()
             }
         }
         webView.evaluateJavaScript("prepareSecureLock()") { value, _ in finish(value) }

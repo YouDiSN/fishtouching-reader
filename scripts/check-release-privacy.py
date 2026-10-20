@@ -27,7 +27,7 @@ def allowed_mac(name):
     if not name.startswith(prefix):
         return False
     resource = name[len(prefix):]
-    return resource in {'index.html', 'settings.html', 'reader-appearance.js', 'reader-appearance.css', 'rename-helper.sh', 'AppIcon.icns', 'web-plugins.js', 'community-plugins.json', 'fanqie-font-map.json'} or resource.startswith('Licenses/') or resource in {f'Icons/{icon}.png' for icon in ICONS}
+    return resource in {'index.html', 'settings.js', 'settings.css', 'reader-appearance.js', 'reader-appearance.css', 'rename-helper.sh', 'AppIcon.icns', 'web-plugins.js', 'community-plugins.json', 'fanqie-font-map.json'} or resource.startswith('Licenses/') or resource in {f'Icons/{icon}.png' for icon in ICONS}
 
 
 def allowed_windows(name):
@@ -39,7 +39,7 @@ def allowed_windows(name):
             return True
         return app in {'main.js', 'preload.js', 'reading-appearance.js', 'epub.js', 'import-plugins.js', 'web-import.js', 'assets/web-plugins.js', 'assets/community-plugins.json', 'assets/fanqie-font-map.json', 'library.js', 'vault.js', 'package.json', 'package-lock.json', 'README.md',
                        'scripts/prepare-assets.js', 'scripts/copy-package-lock.js', 'scripts/smoke.ps1',
-                       'assets/index.html', 'assets/settings.html', 'assets/reader-appearance.js', 'assets/reader-appearance.css', 'assets/pdf.html', 'assets/app.ico'} or app in {f'assets/Icons/{icon}.png' for icon in ICONS}
+                       'assets/index.html', 'assets/settings.js', 'assets/settings.css', 'assets/reader-appearance.js', 'assets/reader-appearance.css', 'assets/pdf.html', 'assets/app.ico'} or app in {f'assets/Icons/{icon}.png' for icon in ICONS}
     if '/' not in name:
         return name in {'FishTouching Reader.exe', 'LICENSE', 'LICENSES.chromium.html', 'version'} or Path(name).suffix in {'.dll', '.pak', '.bin', '.dat', '.json'}
     return name.startswith('locales/') and name.endswith('.pak') or name == 'resources/default_app.asar'

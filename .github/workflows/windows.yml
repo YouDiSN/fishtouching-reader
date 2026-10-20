@@ -5,7 +5,10 @@ on:
     paths:
       - 'windows/**'
       - 'Resources/index.html'
-      - 'Resources/settings.html'
+      - 'Resources/settings.js'
+      - 'Resources/settings.css'
+      - 'Resources/reader-appearance.js'
+      - 'Resources/reader-appearance.css'
       - 'demo/fixtures/**'
       - '.github/workflows/windows.yml'
   workflow_call:
