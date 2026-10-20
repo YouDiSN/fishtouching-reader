@@ -505,14 +505,14 @@ async function runSmoke() {
   if (!reading) throw new Error('Secure reader did not render.');
   smokeStage = 'reading themes and system fonts'; traceSmoke(smokeStage);
   await window.webContents.executeJavaScript('showChunk(0,20,0.25)');
-  await new Promise(resolve=>setTimeout(resolve,100));
+  await window.webContents.executeJavaScript('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');
   const beforeAppearance = await window.webContents.executeJavaScript('currentProgress()');
   await handleReadingAppearance({action:'saveReadingPreferences',theme:'paper'},window);
-  await new Promise(resolve=>setTimeout(resolve,100));
+  await window.webContents.executeJavaScript('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');
   const appearance = await window.webContents.executeJavaScript('({theme:document.documentElement.dataset.readerTheme,position:currentProgress()})');
-  if(appearance.theme!=='paper'||appearance.position.paragraph!==beforeAppearance.paragraph||Math.abs(appearance.position.fraction-beforeAppearance.fraction)>.03)throw new Error('Theme changed reading position.');
+  if(appearance.theme!=='paper'||appearance.position.paragraph!==beforeAppearance.paragraph||Math.abs(appearance.position.fraction-beforeAppearance.fraction)>.03)throw new Error('Theme changed reading position: '+JSON.stringify({beforeAppearance,appearance}));
   await handleReadingAppearance({action:'saveReadingPreferences',fontSize:24},window);
-  await new Promise(resolve=>setTimeout(resolve,100));
+  await window.webContents.executeJavaScript('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');
   const sized=await window.webContents.executeJavaScript('({size:getComputedStyle(document.getElementById("text")).fontSize,position:currentProgress()})');
   if(sized.size!=='24px'||sized.position.paragraph!==beforeAppearance.paragraph||Math.abs(sized.position.fraction-beforeAppearance.fraction)>.05)throw new Error('Font size or reading position was not preserved.');
   if(process.platform==='win32') {
@@ -520,7 +520,7 @@ async function runSmoke() {
     if(!fonts.length)throw new Error('System font list is empty.');
     const font=fonts.find(name=>name==='Arial')||fonts[0];
     await handleReadingAppearance({action:'saveReadingPreferences',font},window);
-    await new Promise(resolve=>setTimeout(resolve,150));
+    await window.webContents.executeJavaScript('document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))');
     const fontPosition=await window.webContents.executeJavaScript('currentProgress()');
     if(preferences.readerFont!==font||fontPosition.paragraph!==beforeAppearance.paragraph||Math.abs(fontPosition.fraction-beforeAppearance.fraction)>.05)throw new Error('Font preference or reading position was not preserved.');
   }
