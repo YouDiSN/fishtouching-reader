@@ -41,7 +41,7 @@ def allowed_windows(name):
                        'scripts/prepare-assets.js', 'scripts/copy-package-lock.js', 'scripts/smoke.ps1',
                        'assets/index.html', 'assets/settings.js', 'assets/settings.css', 'assets/reader-appearance.js', 'assets/reader-appearance.css', 'assets/pdf.html', 'assets/app.ico'} or app in {f'assets/Icons/{icon}.png' for icon in ICONS}
     if '/' not in name:
-        return name in {'FishTouching Reader.exe', 'LICENSE', 'LICENSES.chromium.html', 'version'} or Path(name).suffix in {'.dll', '.pak', '.bin', '.dat', '.json'}
+        return name in {'FishTouching Reader.exe', 'LICENSE', 'LICENSE.electron.txt', 'LICENSES.chromium.html', 'version'} or Path(name).suffix in {'.dll', '.pak', '.bin', '.dat', '.json'}
     return name.startswith('locales/') and name.endswith('.pak') or name in {'resources/default_app.asar', 'resources/app-update.yml', 'resources/elevate.exe'}
 
 

@@ -25,3 +25,5 @@ for(const fail of ['check','download']) test(`${fail} failure keeps app running 
 test('failure saving progress prevents installer launch',async()=>{const f=fixture({prepareFails:true});await f.ui.check();assert.equal(f.ui.state,'ready');assert.ok(!f.calls.some(x=>Array.isArray(x)));});
 test('portable opens only the fixed release page after consent',async()=>{const f=fixture({installed:false});await f.ui.check();assert.deepEqual(f.calls,[RELEASE_URL]);});
 test('repeated clicks cannot start concurrent checks',async()=>{const f=fixture();let resolve;f.updater.checkForUpdates=()=>new Promise(r=>resolve=r);const pending=f.ui.check();await f.ui.check();resolve({isUpdateAvailable:false});await pending;assert.equal(f.dialogs.length,1);});
+
+test('installer failure restores retry state',async()=>{const f=fixture();f.updater.quitAndInstall=()=>f.updater.emit('error',Error('installer could not start'));await f.ui.check();assert.equal(f.ui.state,'ready');assert.equal(f.ui.enabled,true);assert.equal(f.dialogs.at(-1).message,'安装未完成');});

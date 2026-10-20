@@ -3,7 +3,7 @@ const RELEASE_URL = 'https://github.com/YouDiSN/fishtouching-reader/releases/lat
 
 // UI orchestration is separate from the updater so failures and user consent can
 // be tested without replacing an application or touching a real library.
-function createUpdates({ updater, installed, version, ask, openExternal, prepareInstall, setProgress = () => {}, changed = () => {} }) {
+function createUpdates({ updater, installed, version, ask, openExternal, prepareInstall, cancelInstall = () => {}, setProgress = () => {}, changed = () => {} }) {
   let state = 'idle', downloadedVersion = '', busy = false;
   const setState = value => { state = value; changed(); };
   if (updater) {
@@ -15,7 +15,11 @@ function createUpdates({ updater, installed, version, ask, openExternal, prepare
     updater.disableWebInstaller = true;
     // Operations below await and report failures; attaching this listener also
     // prevents EventEmitter's unhandled error behaviour.
-    updater.on('error', () => {});
+    updater.on('error', error => {
+      if (state !== 'installing') return;
+      cancelInstall(); setState('ready');
+      Promise.resolve(ask({ type: 'error', message: '安装未完成', detail: `旧版仍可使用，请重试。\n${String(error.message || error).slice(0, 350)}`, buttons: ['好'] })).catch(() => {});
+    });
     updater.on('download-progress', info => {
       setProgress(Math.min(1, Math.max(0, info.percent / 100)));
     });
@@ -24,6 +28,7 @@ function createUpdates({ updater, installed, version, ask, openExternal, prepare
     const result = await ask({ type: 'info', message: `v${downloadedVersion} 已下载`, detail: '重启后安装更新。书库和阅读进度会保留。', buttons: ['重启并安装', '稍后'], defaultId: 0, cancelId: 1 });
     if (result.response !== 0) return;
     await prepareInstall();
+    setState('installing');
     updater.quitAndInstall(true, true);
   }
   async function check() {
@@ -52,12 +57,13 @@ function createUpdates({ updater, installed, version, ask, openExternal, prepare
       await install();
     } catch (error) {
       setProgress(-1);
-      if (state !== 'ready') setState('idle');
+      cancelInstall();
+      setState(downloadedVersion ? 'ready' : 'idle');
       await ask({ type: 'error', message: '更新未完成', detail: `请检查网络后重试，或稍后重新检查更新。\n${String(error.message || error).slice(0, 350)}`, buttons: ['好'] });
     } finally { busy = false; changed(); }
   }
-  return { check, get state() { return state; }, get enabled() { return !busy; }, get label() {
-    return state === 'checking' ? '正在检查更新…' : state === 'downloading' ? '正在下载更新…' : state === 'ready' ? '重启并安装更新…' : '检查更新…';
+  return { check, get state() { return state; }, get enabled() { return !busy && state !== 'installing'; }, get label() {
+    return state === 'installing' ? '正在安装更新…' : state === 'checking' ? '正在检查更新…' : state === 'downloading' ? '正在下载更新…' : state === 'ready' ? '重启并安装更新…' : '检查更新…';
   } };
 }
 module.exports = { createUpdates, RELEASE_URL };

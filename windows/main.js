@@ -495,6 +495,7 @@ function createWindow() {
       finally { dialogOpen = false; }
     },
     prepareInstall: prepareUpdateInstall,
+    cancelInstall: () => { quitting = false; },
     setProgress: value => window.setProgressBar(value),
     changed: () => updateMenuItems.forEach(item => { item.label = updates.label; item.enabled = updates.enabled; })
   });
