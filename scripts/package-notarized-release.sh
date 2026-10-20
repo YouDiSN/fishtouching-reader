@@ -24,6 +24,24 @@ if ! /usr/bin/xcrun --find notarytool >/dev/null 2>&1; then
   exit 1
 fi
 
+# Apple's ticket service can briefly disconnect after notarization is accepted.
+# Keep verification mandatory and bound retries instead of rebuilding everything.
+staple_with_retry() {
+  local target="$1"
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    if /usr/bin/xcrun stapler staple "$target"; then
+      /usr/bin/xcrun stapler validate "$target"
+      return $?
+    fi
+    if (( attempt < 5 )); then
+      print -u2 "Ticket stapling failed; retrying ($attempt/5)..."
+      /bin/sleep 10
+    fi
+  done
+  return 1
+}
+
 ./scripts/build-app.sh
 source_app=""
 for candidate in "$PWD"/dist/*.app(N); do
@@ -55,8 +73,7 @@ if result.get('status') != 'Accepted':
     raise SystemExit('Apple notarization failed: ' + str(result))
 print('Apple notarization accepted:', result.get('id', ''))
 PY
-/usr/bin/xcrun stapler staple "$release_app"
-/usr/bin/xcrun stapler validate "$release_app"
+staple_with_retry "$release_app"
 /usr/sbin/spctl --assess --type execute --verbose=2 "$release_app"
 /bin/mkdir -p release
 archive="$PWD/release/fishtouching-reader-macos-$arch-v$version-notarized.zip"
@@ -77,7 +94,6 @@ with open(sys.argv[1]) as source:
 if result.get('status') != 'Accepted':
     raise SystemExit('DMG notarization failed: ' + str(result))
 PYNOTARY
-/usr/bin/xcrun stapler staple "$dmg"
-/usr/bin/xcrun stapler validate "$dmg"
+staple_with_retry "$dmg"
 /usr/bin/hdiutil verify "$dmg"
 print "Notarized disk image: $dmg"
