@@ -64,7 +64,9 @@ native.onPdf(async data => {
   try {
     cleared = false;const epoch=++generation;jumpOrigin=null;document.getElementById("return").hidden=true;
     document.getElementById('title').textContent = data.title;
-    const binary = Uint8Array.from(atob(data.data), c => c.charCodeAt(0));
+    // Keep large PDFs binary across IPC; expanding a base64 string through
+    // Uint8Array.from creates a huge intermediate array and can crash V8.
+    const binary = new Uint8Array(data.data);
     const task=pdfjsLib.getDocument({ data: binary });loadingTask=task;
     const model = await task.promise;
     if(epoch!==generation||cleared){await task.destroy();return;}documentModel=model;

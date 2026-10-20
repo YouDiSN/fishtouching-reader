@@ -533,7 +533,7 @@ app.whenReady().then(async () => {
   ipcMain.on('app-action', (event, data) => { if (event.sender === window?.webContents) handleAction(data); });
   ipcMain.on('settings-action', (event, data) => { if (event.sender === settingsWindow?.webContents) settingsAction(data); });
   ipcMain.on('pdf-ready', event => { if (event.sender === window?.webContents && pdf) {
-    window.webContents.send('pdf-document', { title: pdf.entry.title, data: pdf.data.toString('base64'),
+    window.webContents.send('pdf-document', { title: pdf.entry.title, data: pdf.data,
       position: pdf.entry.progress?.position || 0, fraction: pdf.entry.progress?.fraction || 0, secure: pdf.secure });
   } });
   ipcMain.on('pdf-progress', (event, data) => { if (event.sender === window?.webContents && pdf && !pdf.cover)
