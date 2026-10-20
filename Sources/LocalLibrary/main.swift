@@ -1280,7 +1280,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         let archive = appMenu.addItem(withTitle: "备份其他加密书籍…", action: #selector(archiveOtherSecureBooks), keyEquivalent: "")
         archive.target = self
         if let updaterController {
-            let update = appMenu.addItem(withTitle: "Check for Updates…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "")
+            let update = appMenu.addItem(withTitle: "检查更新…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "")
             update.target = updaterController
         }
         appMenu.addItem(NSMenuItem.separator())
@@ -1304,6 +1304,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         let settings = menu.addItem(withTitle: "设置…", action: #selector(menuSettings), keyEquivalent: ",")
         settings.target = self
         settings.keyEquivalentModifierMask = [.command]
+        if let updaterController {
+            let update = menu.addItem(withTitle: "检查更新…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "")
+            update.target = updaterController
+        }
         let about = menu.addItem(withTitle: "关于 FishTouching Reader…", action: #selector(menuAbout), keyEquivalent: "")
         about.target = self
         menu.addItem(NSMenuItem.separator())
