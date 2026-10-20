@@ -103,8 +103,12 @@ jobs:
           test -f "release/FishTouching-Reader-Windows-x64-v$version.zip"
           test -f "release/fishtouching-reader-macos-arm64-v$version.dmg"
           test -f release/appcast.xml
+          # upload-artifact may preserve parent directories for multiple paths.
+          find release -mindepth 2 -type f \( -name '*Setup.exe' -o -name '*.blockmap' -o -name latest.yml \) -exec mv -t release {} +
+          test -f "release/FishTouching-Reader-Windows-x64-v$version-Setup.exe"
+          test -f release/latest.yml
           python3 scripts/check-release-privacy.py release/*.zip
           cd release
-          sha256sum *.dmg *.zip appcast.xml > SHA256SUMS.txt
-          gh release create "v$version" --target "$GITHUB_SHA" --title "v$version" --draft --notes-file ../docs/release-notes.md *.dmg *.zip appcast.xml SHA256SUMS.txt
+          sha256sum *.dmg *.zip *.exe *.blockmap latest.yml appcast.xml > SHA256SUMS.txt
+          gh release create "v$version" --target "$GITHUB_SHA" --title "v$version" --draft --notes-file ../docs/release-notes.md *.dmg *.zip *.exe *.blockmap latest.yml appcast.xml SHA256SUMS.txt
           gh release edit "v$version" --draft=false --latest

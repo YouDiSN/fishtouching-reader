@@ -1,22 +1,27 @@
 {
   "name": "fishtouching-reader-windows",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "private": true,
   "description": "FishTouching Reader for Windows",
   "main": "main.js",
   "scripts": {
     "test": "node --test test/*.test.js",
     "prepare:assets": "node scripts/prepare-assets.js",
-    "package:win": "npm run prepare:assets && electron-packager . \"FishTouching Reader\" --platform=win32 --arch=x64 --out=dist --overwrite --no-asar --icon=assets/app.ico --ignore=^/dist$ --ignore=^/test$ && node scripts/copy-package-lock.js && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --prefix \"dist/FishTouching Reader-win32-x64/resources/app\"",
-    "start": "npm run prepare:assets && electron ."
+    "package:win": "npm run prepare:assets && electron-packager . \"FishTouching Reader\" --platform=win32 --arch=x64 --out=dist --overwrite --no-asar --icon=assets/app.ico --ignore=^/dist$ --ignore=^/test$ --ignore=^/electron-builder.json$ --ignore=^/scripts/update- && node scripts/copy-package-lock.js && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --prefix \"dist/FishTouching Reader-win32-x64/resources/app\"",
+    "start": "npm run prepare:assets && electron .",
+    "package:installer": "npm run prepare:assets && electron-builder --config electron-builder.json --win nsis --x64 --publish never"
   },
   "dependencies": {
     "@xmldom/xmldom": "^0.9.12",
+    "electron-updater": "6.8.9",
     "fflate": "^0.8.3",
     "pdfjs-dist": "6.4.299"
   },
   "devDependencies": {
     "@electron/packager": "20.3.0",
-    "electron": "44.7.0"
-  }
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3"
+  },
+  "author": "YouDiSN",
+  "license": "MIT"
 }

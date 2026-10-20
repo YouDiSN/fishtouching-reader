@@ -89,7 +89,7 @@ TXT、PDF、EPUB 为内置的**官方插件**。添加本地文件时自动匹�
 
 macOS 版通过 Sparkle 检查更新，也可以在应用菜单中手动检查。首次使用自动更新功能前，需手动安装支持该功能的版本；v1.0.1 无法自行更新。签名配置和验证范围见[签名与发布说明](docs/macos-signing.md)。
 
-**Windows：**从[最新版本](https://github.com/YouDiSN/fishtouching-reader/releases/latest)下载 Windows x64 便携 ZIP，完整解压后运行 `FishTouching Reader.exe`。当前 Windows 包未进行代码签名，SmartScreen 可能提示未知发布者；该版本已在 GitHub 的 Windows 运行环境中通过阅读、失焦切到 PDF、锁定和恢复的自动测试，尚未在用户 Windows 电脑上人工验收。两个平台目前各有独立书库，不自动同步。详见 [Windows 说明](windows/README.md)。Windows 版目前需要手动更新。
+**Windows：**从[最新版本](https://github.com/YouDiSN/fishtouching-reader/releases/latest)下载 Windows x64 便携 ZIP，完整解压后运行 `FishTouching Reader.exe`。当前 Windows 包未进行代码签名，SmartScreen 可能提示未知发布者；该版本已在 GitHub 的 Windows 运行环境中通过阅读、失焦切到 PDF、锁定和恢复的自动测试，尚未在用户 Windows 电脑上人工验收。两个平台目前各有独立书库，不自动同步。详见 [Windows 说明](windows/README.md)。Windows 安装版支持应用内更新；旧 ZIP 用户需先安装一次 Setup.exe，便携 ZIP 仍保留。
 
 ## 构建
 
@@ -147,7 +147,7 @@ https://github.com/YouDiSN/fishtouching-reader/releases/latest/download/appcast.
 
 发现新版本后，Sparkle 会显示更新界面。用户确认后，Sparkle 下载并验证更新包、替换应用，再重新启动。用户也可以点击右上角菜单栏图标 →「检查更新…」，或在左上角应用菜单中手动检查更新。应用关闭时不会收到这类更新通知；书库数据仍保存在原有的“应用程序支持”目录中。
 
-使用 v1.0.1 或更早版本的用户，需要先手动安装一个支持自动更新的版本。Windows 版仍需手动更新。v1.0.2 的签名、公证和线上更新源已经验证，但尚未完整测试从旧版下载安装新版的过程。当前版本尚未完整验证从旧版自动下载、安装、重启以及测试书库和阅读进度保留的全过程。旧版 macOS 的兼容性也尚未经过实机验证。
+使用 v1.0.1 或更早版本的用户，需要先手动安装一个支持自动更新的版本。Windows 安装版通过系统托盘或「文件」菜单中的「检查更新…」升级；旧 ZIP 用户需先安装一次 Setup.exe。v1.0.2 的签名、公证和线上更新源已经验证，但尚未完整测试从旧版下载安装新版的过程。当前版本尚未完整验证从旧版自动下载、安装、重启以及测试书库和阅读进度保留的全过程。旧版 macOS 的兼容性也尚未经过实机验证。
 
 ## 存储和备份
 

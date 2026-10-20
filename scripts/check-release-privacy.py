@@ -37,12 +37,12 @@ def allowed_windows(name):
         app = name[len(prefix):]
         if app.startswith(('node_modules/', 'LICENSES/')):
             return True
-        return app in {'main.js', 'preload.js', 'reading-appearance.js', 'epub.js', 'import-plugins.js', 'web-import.js', 'assets/web-plugins.js', 'assets/community-plugins.json', 'assets/fanqie-font-map.json', 'library.js', 'vault.js', 'package.json', 'package-lock.json', 'README.md',
+        return app in {'main.js', 'updates.js', 'preload.js', 'reading-appearance.js', 'epub.js', 'import-plugins.js', 'web-import.js', 'assets/web-plugins.js', 'assets/community-plugins.json', 'assets/fanqie-font-map.json', 'library.js', 'vault.js', 'package.json', 'package-lock.json', 'README.md',
                        'scripts/prepare-assets.js', 'scripts/copy-package-lock.js', 'scripts/smoke.ps1',
                        'assets/index.html', 'assets/settings.js', 'assets/settings.css', 'assets/reader-appearance.js', 'assets/reader-appearance.css', 'assets/pdf.html', 'assets/app.ico'} or app in {f'assets/Icons/{icon}.png' for icon in ICONS}
     if '/' not in name:
         return name in {'FishTouching Reader.exe', 'LICENSE', 'LICENSES.chromium.html', 'version'} or Path(name).suffix in {'.dll', '.pak', '.bin', '.dat', '.json'}
-    return name.startswith('locales/') and name.endswith('.pak') or name == 'resources/default_app.asar'
+    return name.startswith('locales/') and name.endswith('.pak') or name in {'resources/default_app.asar', 'resources/app-update.yml', 'resources/elevate.exe'}
 
 
 def check_zip(archive):

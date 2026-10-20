@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, dialog, globalShortcut, Menu, Tray, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, globalShortcut, Menu, Tray, nativeImage, shell } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const smokeRoot = process.env.FISHTOUCHING_SMOKE_ROOT;
@@ -16,6 +16,7 @@ process.on('unhandledRejection', error => { traceSmoke(`rejection: ${error?.stac
 const { Vault, writeAtomic } = require('./vault');
 const { PublicLibrary, paragraphs } = require('./library');
 const { ImportPluginRegistry, validateManifest } = require('./import-plugins');
+const { createUpdates } = require('./updates');
 
 const DEFAULT_NAME = 'FishTouching Reader';
 const MAX_VAULTS = 2;
@@ -26,7 +27,15 @@ let activeVaultIndex = 0, resumeVaultIndex = 0, settingsVaultIndex = 0;
 let currentTab = 'normal', currentId = null, resumeId = null, pdf = null;
 let settingsVisible = false, settingsOpening = false;
 let switching = false, dialogOpen = false, quitting = false;
+let updates;
+let updateMenuItems = [];
 const smokeMode = Boolean(process.env.FISHTOUCHING_SMOKE_ROOT) || process.argv.includes('--smoke');
+// Both ZIP and installed builds share one library and must not run together.
+if (!smokeMode) {
+  app.setPath('userData', path.join(app.getPath('appData'), 'FishTouching Reader'));
+  if (!app.requestSingleInstanceLock()) app.exit(0);
+  app.on('second-instance', () => { window?.show(); window?.focus(); });
+}
 let smokeStage = 'waiting for Electron';
 if (smokeMode) {
   app.commandLine.appendSwitch('disable-gpu');
@@ -448,6 +457,21 @@ function toggleWindow() {
   if (window.isVisible()) { coverSecure().finally(() => window.hide()); }
   else { window.show(); window.focus(); }
 }
+async function prepareUpdateInstall() {
+  // Read the current position before quitting, including debounced scrolls.
+  if (window && !window.isDestroyed() && !settingsVisible) {
+    if (pdf && !pdf.cover) {
+      const position = await window.webContents.executeJavaScript('({position: pageIndex, fraction: fraction()})');
+      updateProgress(pdf.entry.id, position.position, position.fraction, pdf.secure);
+    } else if (!pdf && currentId) {
+      const position = await window.webContents.executeJavaScript('currentProgress()');
+      if (position) updateProgress(currentId, position.paragraph, position.fraction);
+    }
+  }
+  savePreferences();
+  vaults.forEach(v => v.lock());
+  quitting = true; // Otherwise the close handler hides the window and blocks install.
+}
 function createWindow() {
   window = new BrowserWindow({ width: 940, height: 740, minWidth: 680, minHeight: 520,
     title: preferences.name, icon: iconPath(), backgroundColor: '#101716', autoHideMenuBar: true,
@@ -459,23 +483,58 @@ function createWindow() {
   window.on('blur', () => { window.webContents.executeJavaScript('window.resetSettingsForms?.()').catch(()=>{});if(settingsVisible&&settingsVaultIndex>0)closeSettings();coverSecure(); });
   window.on('close', event => { if (!quitting) { event.preventDefault(); coverSecure().finally(() => window.hide()); } });
   const loaded = window.loadFile(path.join(assets, 'index.html'));
+  const installed = process.platform === 'win32' && app.isPackaged && fs.existsSync(path.join(process.resourcesPath, 'app-update.yml'));
+  updates = createUpdates({
+    updater: installed ? require('electron-updater').autoUpdater : null,
+    installed, version: app.getVersion(), openExternal: url => shell.openExternal(url),
+    ask: async options => {
+      // Cover encrypted content before an update dialog takes focus.
+      await coverSecure(false);
+      dialogOpen = true;
+      try { return await dialog.showMessageBox(window, options); }
+      finally { dialogOpen = false; }
+    },
+    prepareInstall: prepareUpdateInstall,
+    setProgress: value => window.setProgressBar(value),
+    changed: () => updateMenuItems.forEach(item => { item.label = updates.label; item.enabled = updates.enabled; })
+  });
+  const updateItem = () => ({ id: 'check-update', label: '检查更新…', click: () => updates.check() });
   const menu = Menu.buildFromTemplate([{ label: '文件', submenu: [
     { label: '设置', accelerator: 'CommandOrControl+,', click: () => {showSettings().catch(error);} },
     { label: '显示／隐藏', accelerator: 'Control+Alt+H', click: toggleWindow },
+    updateItem(),
     { type: 'separator' }, { label: '退出', click: () => { quitting = true; app.quit(); } }
   ] }]);
   Menu.setApplicationMenu(menu);
   tray = new Tray(nativeImage.createFromPath(iconPath()).resize({ width: 16, height: 16 }));
   tray.setToolTip(preferences.name);
-  tray.setContextMenu(Menu.buildFromTemplate([
+  const trayMenu = Menu.buildFromTemplate([
     { label: '显示／隐藏    Ctrl+Alt+H', click: toggleWindow },
     { label: '设置    Ctrl+,', click: () => {showSettings().catch(error);} },
+    updateItem(),
     { type: 'separator' }, { label: '退出', click: () => { quitting = true; app.quit(); } }
-  ]));
+  ]);
+  tray.setContextMenu(trayMenu);
+  updateMenuItems = [menu.getMenuItemById('check-update'), trayMenu.getMenuItemById('check-update')];
   globalShortcut.register('Control+Alt+H', toggleWindow);
   return loaded;
 }
 async function runSmoke() {
+  if (process.env.FISHTOUCHING_UPDATE_EXPECTED_VERSION) {
+    const fixture = JSON.parse(fs.readFileSync(path.join(root, 'upgrade-fixture.json'), 'utf8'));
+    if (app.getVersion() !== process.env.FISHTOUCHING_UPDATE_EXPECTED_VERSION || app.getVersion() === fixture.oldVersion) throw Error('Installed version did not advance');
+    vault.unlock('fixture-update-password');
+    const entry = vault.list().find(e => e.id === fixture.id);
+    if (!entry || entry.progress?.position !== 1 || entry.progress?.fraction !== .25) throw Error('Encrypted progress lost during upgrade');
+    if (!secureParagraphs(vault.load(entry.id)).includes('虚构的升级验证内容')) throw Error('Encrypted content lost during upgrade');
+    const normal = publicLibrary.list().find(e => e.id === fixture.normalId);
+    if (!normal || normal.progress?.position !== 2 || normal.progress?.fraction !== .5) throw Error('Public progress lost during upgrade');
+    if (preferences.name !== '更新测试' || preferences.readerTheme !== 'forest') throw Error('Preferences lost during upgrade');
+    if (Menu.getApplicationMenu().getMenuItemById('check-update')?.label !== '检查更新…') throw Error('Update menu missing');
+    vault.lock();
+    fs.writeFileSync(path.join(root, 'smoke-ok.txt'), 'Actual NSIS download, replacement, automatic relaunch, encrypted/public books, progress and preferences verified');
+    app.exit(0); return;
+  }
   smokeStage = 'configure vault'; traceSmoke(smokeStage); process.stdout.write(`${smokeStage}\n`);
   const demo = process.env.FISHTOUCHING_SMOKE_FIXTURES
     ? path.resolve(process.env.FISHTOUCHING_SMOKE_FIXTURES)
@@ -618,5 +677,6 @@ app.whenReady().then(async () => {
   await createWindow(); traceSmoke('window ready');
   if (smokeMode) await runSmoke();
 }).catch(e => { traceSmoke(`startup error: ${e.stack || e}`); process.stderr.write(`${e.stack || e}\n`); process.exit(1); });
+app.on('before-quit', () => { quitting = true; });
 app.on('will-quit', () => { globalShortcut.unregisterAll(); vaults?.forEach(v => v.lock()); });
 app.on('window-all-closed', () => { if (quitting) app.quit(); });

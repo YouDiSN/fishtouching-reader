@@ -56,6 +56,17 @@ jobs:
           FISHTOUCHING_SMOKE_FIXTURES: ${{ github.workspace }}\demo\fixtures
         run: |
           & windows/scripts/smoke.ps1 'windows/dist/FishTouching Reader-win32-x64/FishTouching Reader.exe' @('--smoke')
+      - name: Build NSIS installer and update feed
+        run: npm run package:installer --prefix windows
+      - name: Check installer payload privacy
+        shell: pwsh
+        run: |
+          Compress-Archive -Path 'windows/dist/installer/win-unpacked/*' -DestinationPath "$env:RUNNER_TEMP/installer-payload.zip"
+          python scripts/check-release-privacy.py "$env:RUNNER_TEMP/installer-payload.zip"
+      - name: Exercise actual installed update and retained library
+        shell: pwsh
+        timeout-minutes: 8
+        run: windows/scripts/update-smoke.ps1
       - name: Read version
         shell: pwsh
         run: |
@@ -69,7 +80,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: FishTouching-Reader-Windows-x64-v${{ env.APP_VERSION }}
-          path: FishTouching-Reader-Windows-x64-v${{ env.APP_VERSION }}.zip
+          path: |
+            FishTouching-Reader-Windows-x64-v${{ env.APP_VERSION }}.zip
+            windows/dist/installer/*Setup.exe
+            windows/dist/installer/*.blockmap
+            windows/dist/installer/latest.yml
           if-no-files-found: error
       - name: Attach Windows ZIP to Release
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag != '' }}
@@ -77,4 +92,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
-        run: gh release upload $env:RELEASE_TAG 'FishTouching-Reader-Windows-x64-v${{ env.APP_VERSION }}.zip' --clobber
+        run: gh release upload $env:RELEASE_TAG 'FishTouching-Reader-Windows-x64-v${{ env.APP_VERSION }}.zip' windows/dist/installer/*Setup.exe windows/dist/installer/*.blockmap windows/dist/installer/latest.yml

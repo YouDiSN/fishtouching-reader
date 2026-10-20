@@ -1,0 +1,10 @@
+{
+  "appId": "com.youdisn.fishtouching-reader",
+  "productName": "FishTouching Reader",
+  "asar": false,
+  "directories": { "output": "dist/installer" },
+  "files": ["*.js", "package.json", "assets/**/*", "LICENSES/**/*", "!assets/settings.html"],
+  "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "assets/app.ico", "signAndEditExecutable": false },
+  "nsis": { "oneClick": false, "perMachine": false, "allowElevation": false, "allowToChangeInstallationDirectory": true, "deleteAppDataOnUninstall": false, "runAfterFinish": false, "artifactName": "FishTouching-Reader-Windows-x64-v${version}-Setup.exe" },
+  "publish": { "provider": "generic", "url": "https://github.com/YouDiSN/fishtouching-reader/releases/latest/download/" }
+}
